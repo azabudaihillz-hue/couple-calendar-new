@@ -179,21 +179,28 @@ export default function App() {
     }
   }, [showSnackbar]);
 
-  // 2. DB에 데이터 쏘아 올리는 함수 (안전성 강화 버전)
+  // 2. DB에 데이터 안전하게 쏘아 올리는 함수
   const syncToSupabase = async (date: string, hOver: any, dOver: any, mem: string) => {
     try {
-      const { error } = await supabase.from('couple_calendar').upsert({
+      const payload = {
         date: date,
-        hae_shift: hOver ? JSON.parse(JSON.stringify(hOver)) : null,
-        dawon_shift: dOver ? JSON.parse(JSON.stringify(dOver)) : null,
+        hae_shift: hOver || null,
+        dawon_shift: dOver || null,
         memo: mem || ''
-      }, { onConflict: 'date' });
+      };
+
+      const { error } = await supabase
+        .from('couple_calendar')
+        .upsert(payload, { onConflict: 'date' });
 
       if (error) {
-        console.error('DB 저장 실패 에러:', error.message);
+        console.error('Supabase 저장 에러:', error.message);
+        alert('저장 실패: ' + error.message);
+      } else {
+        console.log('DB 저장 성공:', date);
       }
     } catch (err) {
-      console.error('네트워크 또는 통신 에러:', err);
+      console.error('네트워크 에러:', err);
     }
   };
 
