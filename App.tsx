@@ -179,14 +179,22 @@ export default function App() {
     }
   }, [showSnackbar]);
 
-  // 2. DB에 데이터 쏘아 올리는 함수
+  // 2. DB에 데이터 쏘아 올리는 함수 (안전성 강화 버전)
   const syncToSupabase = async (date: string, hOver: any, dOver: any, mem: string) => {
-    await supabase.from('couple_calendar').upsert({
-      date: date,
-      hae_shift: hOver || null,
-      dawon_shift: dOver || null,
-      memo: mem || ''
-    });
+    try {
+      const { error } = await supabase.from('couple_calendar').upsert({
+        date: date,
+        hae_shift: hOver ? JSON.parse(JSON.stringify(hOver)) : null,
+        dawon_shift: dOver ? JSON.parse(JSON.stringify(dOver)) : null,
+        memo: mem || ''
+      }, { onConflict: 'date' });
+
+      if (error) {
+        console.error('DB 저장 실패 에러:', error.message);
+      }
+    } catch (err) {
+      console.error('네트워크 또는 통신 에러:', err);
+    }
   };
 
   const onDayPress = (dateString: string) => {
