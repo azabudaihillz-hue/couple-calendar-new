@@ -12,7 +12,7 @@ import {
   Platform
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { supabase } from './supabase'; // 🚨 DB 연결 파일 불러오기!
+import { supabase } from './supabase';
 
 LocaleConfig.locales['kr'] = {
   monthNames: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
@@ -25,6 +25,19 @@ LocaleConfig.defaultLocale = 'kr';
 
 const CYCLE_BASE_DATE = new Date('2026-09-08T00:00:00Z');
 const COUPLE_START_DATE = new Date('2026-06-26T00:00:00Z');
+
+// 2026년 주요 대한민국 공휴일 (필요시 추가 가능)
+const HOLIDAYS: Record<string, string> = {
+  '2026-01-01': '신정',
+  '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
+  '2026-03-01': '삼일절',
+  '2026-05-05': '어린이날', '2026-05-24': '부처님오신날',
+  '2026-06-06': '현충일',
+  '2026-08-15': '광복절',
+  '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴',
+  '2026-10-03': '개천절', '2026-10-09': '한글날',
+  '2026-12-25': '기독탄신일'
+};
 
 const HAE_SHIFTS = {
   DAY: { id: 'DAY', label: '데이', text: 'D', color: '#FFCC00', textColor: '#1C1C1E' },
@@ -65,11 +78,19 @@ export default function App() {
   const [markedDates, setMarkedDates] = useState<any>({});
   const [haeOverrides, setHaeOverrides] = useState<any>({});
   const [dawonOverrides, setDawonOverrides] = useState<any>({});
+  
   const [memos, setMemos] = useState<any>({});
+  const [haeMemos, setHaeMemos] = useState<any>({});
+  const [dawonMemos, setDawonMemos] = useState<any>({});
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
+  
   const [memoInput, setMemoInput] = useState('');
+  const [haeMemoInput, setHaeMemoInput] = useState('');
+  const [dawonMemoInput, setDawonMemoInput] = useState('');
+  const [activeTab, setActiveTab] = useState('공용'); // 공용, 해, 다원 탭
+  
   const [isDark, setIsDark] = useState(false);
   const [dDayText, setDDayText] = useState('');
   const [showSnackbar, setShowSnackbar] = useState(false);
@@ -88,20 +109,25 @@ export default function App() {
     overlapBg: isDark ? '#3A2028' : '#FFF0F5',
   };
 
-  // 1. 앱 켜질 때 DB에서 데이터 가져오기 & 실시간 감지 세팅
   useEffect(() => {
     const fetchCalendarData = async () => {
       const { data, error } = await supabase.from('couple_calendar').select('*');
       if (data) {
-        const hOver: any = {}; const dOver: any = {}; const memoMap: any = {};
+        const hOver: any = {}; const dOver: any = {}; 
+        const memoMap: any = {}; const hMemoMap: any = {}; const dMemoMap: any = {};
+        
         data.forEach((row) => {
           if (row.hae_shift) hOver[row.date] = row.hae_shift;
           if (row.dawon_shift) dOver[row.date] = row.dawon_shift;
           if (row.memo) memoMap[row.date] = row.memo;
+          if (row.hae_memo) hMemoMap[row.date] = row.hae_memo;
+          if (row.dawon_memo) dMemoMap[row.date] = row.dawon_memo;
         });
         setHaeOverrides(hOver);
         setDawonOverrides(dOver);
         setMemos(memoMap);
+        setHaeMemos(hMemoMap);
+        setDawonMemos(dMemoMap);
       }
       setIsLoading(false);
       setShowSnackbar(true);
@@ -109,7 +135,6 @@ export default function App() {
 
     fetchCalendarData();
 
-    // 실시간으로 변동사항 감지해서 화면에 바로 뿌려주기
     const subscription = supabase
       .channel('public:couple_calendar')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'couple_calendar' }, (payload) => {
@@ -118,6 +143,8 @@ export default function App() {
           setHaeOverrides((prev: any) => ({ ...prev, [newRow.date]: newRow.hae_shift }));
           setDawonOverrides((prev: any) => ({ ...prev, [newRow.date]: newRow.dawon_shift }));
           setMemos((prev: any) => ({ ...prev, [newRow.date]: newRow.memo }));
+          setHaeMemos((prev: any) => ({ ...prev, [newRow.date]: newRow.hae_memo }));
+          setDawonMemos((prev: any) => ({ ...prev, [newRow.date]: newRow.dawon_memo }));
         }
       })
       .subscribe();
@@ -137,6 +164,8 @@ export default function App() {
       const haeShift = haeOverrides[dateStr] || getCalculatedShift(dateStr);
       const dawonShift = dawonOverrides[dateStr] || null;
       const memo = memos[dateStr] || '';
+      const hMemo = haeMemos[dateStr] || '';
+      const dMemo = dawonMemos[dateStr] || '';
 
       const month = target.getUTCMonth() + 1;
       const day = target.getUTCDate();
@@ -152,7 +181,7 @@ export default function App() {
         const diffAnnivDays = Math.floor(diffAnnivTime / (1000 * 60 * 60 * 24)) + 1;
         if (diffAnnivDays > 0 && diffAnnivDays % 100 === 0) annivText = `❤️ ${diffAnnivDays}일`;
       }
-      marks[dateStr] = { haeShift, dawonShift, memo, annivText };
+      marks[dateStr] = { haeShift, dawonShift, memo, hMemo, dMemo, annivText };
     }
     setMarkedDates(marks);
 
@@ -170,35 +199,20 @@ export default function App() {
     if (closestDday === 0) setDDayText('오늘 데이트 날이에요! ❤️');
     else if (closestDday !== null) setDDayText(`다음 데이트까지 D-${closestDday} ❤️`);
     else setDDayText('');
-  }, [haeOverrides, dawonOverrides, memos, isLoading, todayStr]);
+  }, [haeOverrides, dawonOverrides, memos, haeMemos, dawonMemos, isLoading, todayStr]);
 
-  useEffect(() => {
-    if (showSnackbar) {
-      const timer = setTimeout(() => setShowSnackbar(false), 3500);
-      return () => clearTimeout(timer);
-    }
-  }, [showSnackbar]);
-
-  // 2. DB에 데이터 안전하게 쏘아 올리는 함수
-  const syncToSupabase = async (date: string, hOver: any, dOver: any, mem: string) => {
+  const syncToSupabase = async (date: string, hOver: any, dOver: any, mem: string, hMem: string, dMem: string) => {
     try {
       const payload = {
         date: date,
-        hae_shift: hOver || null,
-        dawon_shift: dOver || null,
-        memo: mem || ''
+        hae_shift: hOver ? JSON.parse(JSON.stringify(hOver)) : null,
+        dawon_shift: dOver ? JSON.parse(JSON.stringify(dOver)) : null,
+        memo: mem || '',
+        hae_memo: hMem || '',
+        dawon_memo: dMem || ''
       };
 
-      const { error } = await supabase
-        .from('couple_calendar')
-        .upsert(payload, { onConflict: 'date' });
-
-      if (error) {
-        console.error('Supabase 저장 에러:', error.message);
-        alert('저장 실패: ' + error.message);
-      } else {
-        console.log('DB 저장 성공:', date);
-      }
+      await supabase.from('couple_calendar').upsert(payload, { onConflict: 'date' });
     } catch (err) {
       console.error('네트워크 에러:', err);
     }
@@ -207,71 +221,67 @@ export default function App() {
   const onDayPress = (dateString: string) => {
     setSelectedDate(dateString);
     setMemoInput(memos[dateString] || '');
+    setHaeMemoInput(haeMemos[dateString] || '');
+    setDawonMemoInput(dawonMemos[dateString] || '');
+    setActiveTab('공용');
     setModalVisible(true);
   };
 
-  const handleMemoChange = (text: string) => {
-    setMemoInput(text);
-  };
-
   const addDateMemo = () => {
-    let newText = '';
-    if (memoInput.includes('❤️ 데이트')) newText = memoInput.replace('❤️ 데이트', '').trim();
-    else newText = memoInput ? `${memoInput} ❤️ 데이트` : '❤️ 데이트';
-    handleMemoChange(newText);
+    let newText = memoInput.includes('❤️ 데이트') ? memoInput.replace('❤️ 데이트', '').trim() : (memoInput ? `${memoInput} ❤️ 데이트` : '❤️ 데이트');
+    setMemoInput(newText);
+    setActiveTab('공용');
   };
 
   const closeModalAndSave = () => {
     setModalVisible(false);
+    const newMemos = { ...memos }; const newHaeMemos = { ...haeMemos }; const newDawonMemos = { ...dawonMemos };
     
-    // 모달을 닫을 때, 입력된 메모를 화면(State)에 반영하고 DB로 쏨
-    const newMemos = { ...memos };
-    if (memoInput.trim() === '') {
-      delete newMemos[selectedDate];
+    if (memoInput.trim() === '') delete newMemos[selectedDate]; else newMemos[selectedDate] = memoInput;
+    if (haeMemoInput.trim() === '') delete newHaeMemos[selectedDate]; else newHaeMemos[selectedDate] = haeMemoInput;
+    if (dawonMemoInput.trim() === '') delete newDawonMemos[selectedDate]; else newDawonMemos[selectedDate] = dawonMemoInput;
+    
+    setMemos(newMemos); setHaeMemos(newHaeMemos); setDawonMemos(newDawonMemos);
+    syncToSupabase(selectedDate, haeOverrides[selectedDate], dawonOverrides[selectedDate], memoInput, haeMemoInput, dawonMemoInput);
+  };
+
+  // OT 설정 (JSON 내부 객체에 ot 속성 추가)
+  const setOT = (person: 'hae' | 'dawon', otHours: number) => {
+    if (person === 'hae') {
+      const current = haeOverrides[selectedDate] || getCalculatedShift(selectedDate);
+      const updated = { ...current, ot: current.ot === otHours ? 0 : otHours };
+      setHaeOverrides({ ...haeOverrides, [selectedDate]: updated });
+      syncToSupabase(selectedDate, updated, dawonOverrides[selectedDate], memoInput, haeMemoInput, dawonMemoInput);
     } else {
-      newMemos[selectedDate] = memoInput;
+      if (!dawonOverrides[selectedDate]) return;
+      const updated = { ...dawonOverrides[selectedDate], ot: dawonOverrides[selectedDate].ot === otHours ? 0 : otHours };
+      setDawonOverrides({ ...dawonOverrides, [selectedDate]: updated });
+      syncToSupabase(selectedDate, haeOverrides[selectedDate], updated, memoInput, haeMemoInput, dawonMemoInput);
     }
-    setMemos(newMemos);
-    syncToSupabase(selectedDate, haeOverrides[selectedDate], dawonOverrides[selectedDate], memoInput);
   };
 
   const updateHaeShift = (shift: any) => {
     setHaeOverrides({ ...haeOverrides, [selectedDate]: shift });
-    syncToSupabase(selectedDate, shift, dawonOverrides[selectedDate], memoInput);
+    syncToSupabase(selectedDate, shift, dawonOverrides[selectedDate], memoInput, haeMemoInput, dawonMemoInput);
   };
-
   const clearHaeShift = () => {
-    const newO = { ...haeOverrides };
-    delete newO[selectedDate];
+    const newO = { ...haeOverrides }; delete newO[selectedDate];
     setHaeOverrides(newO);
-    syncToSupabase(selectedDate, null, dawonOverrides[selectedDate], memoInput);
+    syncToSupabase(selectedDate, null, dawonOverrides[selectedDate], memoInput, haeMemoInput, dawonMemoInput);
   };
 
   const updateDawonShift = (shift: any) => {
     setDawonOverrides({ ...dawonOverrides, [selectedDate]: shift });
-    syncToSupabase(selectedDate, haeOverrides[selectedDate], shift, memoInput);
+    syncToSupabase(selectedDate, haeOverrides[selectedDate], shift, memoInput, haeMemoInput, dawonMemoInput);
   };
-
   const clearDawonShift = () => {
-    const newD = { ...dawonOverrides };
-    delete newD[selectedDate];
+    const newD = { ...dawonOverrides }; delete newD[selectedDate];
     setDawonOverrides(newD);
-    syncToSupabase(selectedDate, haeOverrides[selectedDate], null, memoInput);
+    syncToSupabase(selectedDate, haeOverrides[selectedDate], null, memoInput, haeMemoInput, dawonMemoInput);
   };
 
   const currentHaeShift = haeOverrides[selectedDate] || (selectedDate ? getCalculatedShift(selectedDate) : null);
   const currentDawonShift = dawonOverrides[selectedDate];
-  const todayHaeShift = haeOverrides[todayStr] || getCalculatedShift(todayStr);
-  const todayDawonShift = dawonOverrides[todayStr];
-  const todayMemo = memos[todayStr] || '';
-  
-  let snackMsg = '오늘도 좋은 하루 보내요! ✨';
-  if (todayMemo.includes('데이트')) snackMsg = '오늘 데이트 날이에요! 퇴근하고 만나요🥰';
-  else if (todayHaeShift && todayDawonShift) {
-    if (todayHaeShift.id === 'OFF' && todayDawonShift.id === 'OFF') snackMsg = '둘 다 쉬는 날! 좋은 하루 보내요 💕';
-    else if (todayHaeShift.id === todayDawonShift.id) snackMsg = `오늘 둘 다 ${todayHaeShift.label} 근무네요! 화이팅 💪`;
-    else snackMsg = `오늘 해는 ${todayHaeShift.text}, 다원이는 ${todayDawonShift.text}! 화이팅🥰`;
-  }
 
   if (isLoading) {
     return (
@@ -283,10 +293,10 @@ export default function App() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <View style={styles.webCenteringContainer}>
+      <View style={[styles.webCenteringContainer, { paddingTop: Platform.OS === 'web' ? 55 : 20 }]}>
         {showSnackbar && (
           <View style={styles.snackbar}>
-            <Text style={styles.snackbarText}>{snackMsg}</Text>
+            <Text style={styles.snackbarText}>오늘 데이트 날이에요! 퇴근하고 만나요🥰</Text>
           </View>
         )}
 
@@ -334,9 +344,8 @@ export default function App() {
                 const isToday = dateStr === todayStr;
                 const isDisabled = state === 'disabled';
                 const isOverlap = marking.haeShift && marking.dawonShift && marking.haeShift.id === marking.dawonShift.id;
-                const previewText = marking.memo 
-                  ? (marking.memo.includes('❤️ 데이트') ? marking.memo.replace('❤️ 데이트', '❤️').trim() : marking.memo) 
-                  : '';
+                const isDateDay = marking.memo && marking.memo.includes('데이트');
+                const isHoliday = HOLIDAYS[dateStr];
 
                 return (
                   <TouchableOpacity
@@ -344,47 +353,59 @@ export default function App() {
                     onPress={() => onDayPress(dateStr)}
                     activeOpacity={0.6}
                   >
+                    {/* 상단 알림 점(Dots) 영역 */}
+                    <View style={styles.dotsContainer}>
+                      {marking.hMemo ? <View style={[styles.dot, { backgroundColor: '#0A84FF' }]} /> : null}
+                      {marking.dMemo ? <View style={[styles.dot, { backgroundColor: '#FF69B4' }]} /> : null}
+                      {isHoliday ? <View style={[styles.dot, { backgroundColor: '#FF3B30' }]} /> : null}
+                    </View>
+
                     <View style={styles.annivContainer}>
                       {marking.annivText ? (
-                        <Text style={styles.annivText} numberOfLines={1} ellipsizeMode="tail">{marking.annivText}</Text>
+                        <Text style={styles.annivText} numberOfLines={1}>{marking.annivText}</Text>
+                      ) : isHoliday ? (
+                        <Text style={[styles.annivText, {color: '#FF3B30'}]} numberOfLines={1}>{isHoliday}</Text>
                       ) : null}
                     </View>
 
                     <View style={[styles.dateNumberWrapper, isToday && { backgroundColor: themeColors.todayBg }]}>
-                      <Text style={[styles.dayNumber, { color: isDisabled ? themeColors.subText : isToday ? '#FFFFFF' : themeColors.text }]}>
+                      <Text style={[styles.dayNumber, { color: isDisabled ? themeColors.subText : isToday ? '#FFFFFF' : (isHoliday ? '#FF3B30' : themeColors.text) }]}>
                         {date.day}
                       </Text>
                     </View>
 
-                    <View style={styles.shiftRow}>
-                      {marking.haeShift ? (
-                        <View style={styles.shiftBox}>
-                          <Text style={[styles.personLabel, { color: themeColors.text, opacity: isDisabled ? 0.3 : 1 }]}>해</Text>
-                          <View style={[styles.circleBadge, { backgroundColor: marking.haeShift.color, opacity: isDisabled ? 0.3 : 1 }]}>
-                            <Text style={[styles.circleText, { color: marking.haeShift.textColor }]}>{marking.haeShift.text}</Text>
+                    {/* 데이트 날짜면 근무 대신 하트 표기 */}
+                    {isDateDay ? (
+                      <Text style={styles.heartCenter}>❤️</Text>
+                    ) : (
+                      <View style={styles.shiftRow}>
+                        {marking.haeShift ? (
+                          <View style={styles.shiftBox}>
+                            <Text style={[styles.personLabel, { color: themeColors.text, opacity: isDisabled ? 0.3 : 1 }]}>해</Text>
+                            <View style={[styles.circleBadge, { backgroundColor: marking.haeShift.color, opacity: isDisabled ? 0.3 : 1 }]}>
+                              <Text style={[styles.circleText, { color: marking.haeShift.textColor }]}>
+                                {marking.haeShift.text}{marking.haeShift.ot ? `+${marking.haeShift.ot}` : ''}
+                              </Text>
+                            </View>
                           </View>
-                        </View>
-                      ) : <View style={styles.shiftBox} />}
+                        ) : <View style={styles.shiftBox} />}
 
-                      {marking.haeShift && marking.dawonShift && (
-                        <View style={[styles.verticalDivider, { backgroundColor: themeColors.divider, opacity: isDisabled ? 0.3 : 1 }]} />
-                      )}
+                        {marking.haeShift && marking.dawonShift && (
+                          <View style={[styles.verticalDivider, { backgroundColor: themeColors.divider, opacity: isDisabled ? 0.3 : 1 }]} />
+                        )}
 
-                      {marking.dawonShift ? (
-                        <View style={styles.shiftBox}>
-                          <Text style={[styles.personLabel, { color: themeColors.text, opacity: isDisabled ? 0.3 : 1 }]}>다원</Text>
-                          <View style={[styles.circleBadge, { backgroundColor: marking.dawonShift.color, opacity: isDisabled ? 0.3 : 1 }]}>
-                            <Text style={[styles.circleText, { color: marking.dawonShift.textColor }]}>{marking.dawonShift.text}</Text>
+                        {marking.dawonShift ? (
+                          <View style={styles.shiftBox}>
+                            <Text style={[styles.personLabel, { color: themeColors.text, opacity: isDisabled ? 0.3 : 1 }]}>다원</Text>
+                            <View style={[styles.circleBadge, { backgroundColor: marking.dawonShift.color, opacity: isDisabled ? 0.3 : 1 }]}>
+                              <Text style={[styles.circleText, { color: marking.dawonShift.textColor }]}>
+                                {marking.dawonShift.text}{marking.dawonShift.ot ? `+${marking.dawonShift.ot}` : ''}
+                              </Text>
+                            </View>
                           </View>
-                        </View>
-                      ) : <View style={styles.shiftBox} />}
-                    </View>
-
-                    {previewText ? (
-                      <Text numberOfLines={1} style={[styles.memoPreview, { color: marking.memo.includes('데이트') ? '#FF69B4' : themeColors.subText, opacity: isDisabled ? 0.3 : 1 }]}>
-                        {previewText}
-                      </Text>
-                    ) : <View style={{ height: 8 }} />}
+                        ) : <View style={styles.shiftBox} />}
+                      </View>
+                    )}
                   </TouchableOpacity>
                 );
               }}
@@ -397,13 +418,20 @@ export default function App() {
         <Pressable style={styles.modalOverlay} onPress={closeModalAndSave}>
           <Pressable style={[styles.modalContent, { backgroundColor: themeColors.modalBg }]} onPress={(e) => e.stopPropagation()}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }} style={{ width: '100%' }}>
-              <Text style={[styles.modalDate, { color: themeColors.text }]}>{selectedDate}</Text>
+              <Text style={[styles.modalDate, { color: themeColors.text }]}>{selectedDate} {HOLIDAYS[selectedDate] ? `(${HOLIDAYS[selectedDate]})` : ''}</Text>
               
-              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>☀️ 해의 근무 {currentHaeShift ? `(현재: ${currentHaeShift.label})` : ''}</Text>
+              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>☀️ 해의 근무 {currentHaeShift ? `(현재: ${currentHaeShift.label}${currentHaeShift.ot ? ` +${currentHaeShift.ot}OT` : ''})` : ''}</Text>
               <View style={styles.shiftButtonRow}>
                 {Object.values(HAE_SHIFTS).map((shift) => (
                   <TouchableOpacity key={shift.id} style={[styles.shiftButton, { backgroundColor: shift.color }]} onPress={() => updateHaeShift(shift)}>
                     <Text style={[styles.shiftButtonText, { color: shift.textColor }]}>{shift.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.otButtonRow}>
+                {[1, 2, 3, 4].map(ot => (
+                  <TouchableOpacity key={`h-ot-${ot}`} style={[styles.otButton, currentHaeShift?.ot === ot && {borderColor: themeColors.primary, borderWidth: 2}]} onPress={() => setOT('hae', ot)}>
+                    <Text style={{fontSize: 12, color: themeColors.text}}>+{ot} OT</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -413,11 +441,18 @@ export default function App() {
 
               <View style={[styles.divider, { backgroundColor: themeColors.divider }]} />
 
-              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>🌙 다원의 근무 {currentDawonShift ? `(현재: ${currentDawonShift.label})` : ''}</Text>
+              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>🌙 다원의 근무 {currentDawonShift ? `(현재: ${currentDawonShift.label}${currentDawonShift.ot ? ` +${currentDawonShift.ot}OT` : ''})` : ''}</Text>
               <View style={styles.shiftButtonRow}>
                 {Object.values(DAWON_SHIFTS).map((shift) => (
                   <TouchableOpacity key={shift.id} style={[styles.shiftButtonDawon, { backgroundColor: shift.color }]} onPress={() => updateDawonShift(shift)}>
                     <Text style={[styles.shiftButtonText, { color: shift.textColor, fontSize: 13 }]}>{shift.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.otButtonRow}>
+                {[1, 2, 3, 4].map(ot => (
+                  <TouchableOpacity key={`d-ot-${ot}`} style={[styles.otButton, currentDawonShift?.ot === ot && {borderColor: themeColors.primary, borderWidth: 2}]} onPress={() => setOT('dawon', ot)}>
+                    <Text style={{fontSize: 12, color: themeColors.text}}>+{ot} OT</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -427,27 +462,36 @@ export default function App() {
 
               <View style={[styles.divider, { backgroundColor: themeColors.divider }]} />
 
-              <View style={{ width: '100%' }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, width: '100%' }}>
-                  <Text style={[styles.sectionTitle, { color: themeColors.text, marginBottom: 0 }]}>📝 공유 메모</Text>
+              <View style={styles.tabContainer}>
+                {['공용', '해', '다원'].map(tab => (
+                  <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={[styles.tabButton, activeTab === tab && { borderBottomColor: themeColors.primary, borderBottomWidth: 2 }]}>
+                    <Text style={{ color: activeTab === tab ? themeColors.primary : themeColors.subText, fontWeight: 'bold' }}>{tab} 메모</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', width: '100%', marginBottom: 10 }}>
+                {activeTab === '공용' && (
                   <TouchableOpacity style={styles.quickDateButton} onPress={addDateMemo}>
                     <Text style={styles.quickDateButtonText}>❤️ 데이트</Text>
                   </TouchableOpacity>
-                </View>
+                )}
               </View>
               
               <TextInput
                 style={[styles.input, { color: themeColors.text, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
-                placeholder="일정이나 메모를 남겨보세요"
+                placeholder={activeTab === '공용' ? "같이 볼 일정을 남겨요" : `${activeTab}의 개인 메모를 남겨요`}
                 placeholderTextColor={themeColors.subText}
-                value={memoInput}
-                onChangeText={handleMemoChange}
+                value={activeTab === '공용' ? memoInput : activeTab === '해' ? haeMemoInput : dawonMemoInput}
+                onChangeText={activeTab === '공용' ? setMemoInput : activeTab === '해' ? setHaeMemoInput : setDawonMemoInput}
                 multiline={true} 
               />
 
               <View style={[styles.actionButtonRow, { borderColor: themeColors.divider }]}>
-                <TouchableOpacity style={[styles.cancelButton, { borderColor: themeColors.divider }]} onPress={() => handleMemoChange('')}>
-                  <Text style={[styles.actionButtonText, { color: themeColors.subText }]}>메모 지우기</Text>
+                <TouchableOpacity style={[styles.cancelButton, { borderColor: themeColors.divider }]} onPress={() => {
+                  if(activeTab === '공용') setMemoInput(''); else if(activeTab === '해') setHaeMemoInput(''); else setDawonMemoInput('');
+                }}>
+                  <Text style={[styles.actionButtonText, { color: themeColors.subText }]}>현재 메모 지우기</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveButton} onPress={closeModalAndSave}>
                   <Text style={[styles.actionButtonText, { color: themeColors.primary, fontWeight: 'bold' }]}>닫고 저장하기</Text>
@@ -466,13 +510,13 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   webCenteringContainer: { flex: 1, width: '100%', maxWidth: 500, alignSelf: 'center' },
   scrollContent: { paddingBottom: 30 },
-  snackbar: { position: 'absolute', top: 40, left: 20, right: 20, backgroundColor: 'rgba(255, 105, 180, 0.9)', padding: 10, borderRadius: 10, zIndex: 100, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 5, elevation: 5 },
+  snackbar: { position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: 'rgba(255, 105, 180, 0.9)', padding: 10, borderRadius: 10, zIndex: 100, alignItems: 'center' },
   snackbarText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginVertical: 10, width: '100%' },
   headerTitle: { fontSize: 18, fontWeight: '700' },
   ddayText: { fontSize: 11, color: '#FF69B4', fontWeight: 'bold', marginTop: 2 },
   themeToggle: { padding: 5 },
-  calendarWrapper: { marginHorizontal: Platform.OS === 'web' ? 0 : 15, borderRadius: 20, paddingTop: 5, paddingBottom: 15, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
+  calendarWrapper: { marginHorizontal: Platform.OS === 'web' ? 0 : 15, borderRadius: 20, paddingTop: 5, paddingBottom: 15, overflow: 'hidden' },
   calendar: { width: '100%' },
   legendContainer: { paddingHorizontal: 15, paddingVertical: 8, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' },
   legendItem: { flexDirection: 'row', alignItems: 'center', marginRight: 12 },
@@ -480,17 +524,19 @@ const styles = StyleSheet.create({
   legendCircleText: { fontSize: 9, fontWeight: '900' },
   legendText: { fontSize: 10, fontWeight: '700' },
   dayCell: { height: 60, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 1, width: '100%' }, 
+  dotsContainer: { position: 'absolute', top: 2, right: 2, flexDirection: 'row', gap: 2 },
+  dot: { width: 4, height: 4, borderRadius: 2 },
   annivContainer: { height: 9, width: '100%', alignItems: 'center', overflow: 'hidden', marginBottom: 1 },
   annivText: { fontSize: 8, color: '#FF3B30', fontWeight: 'bold' },
   dateNumberWrapper: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 1 },
   dayNumber: { fontSize: 12, fontWeight: '400' },
+  heartCenter: { fontSize: 22, marginTop: 2 },
   shiftRow: { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'center', width: '100%', paddingHorizontal: 1, marginBottom: 1 },
   shiftBox: { alignItems: 'center', flex: 1 }, 
   personLabel: { fontSize: 8, fontWeight: '700', marginBottom: 1 }, 
   circleBadge: { width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }, 
-  circleText: { fontSize: 10, fontWeight: '900' }, 
+  circleText: { fontSize: 9, fontWeight: '900' }, 
   verticalDivider: { width: 1, height: 12, marginHorizontal: 1, marginTop: 4 }, 
-  memoPreview: { fontSize: 9, fontWeight: '500', width: '95%', textAlign: 'center', overflow: 'hidden', marginTop: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: '85%', maxWidth: 400, borderRadius: 20, padding: 20, maxHeight: '85%' },
   modalDate: { fontSize: 18, fontWeight: '600', marginBottom: 15 },
@@ -501,8 +547,12 @@ const styles = StyleSheet.create({
   shiftButton: { width: 45, height: 45, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   shiftButtonDawon: { flex: 1, aspectRatio: 1, maxWidth: 45, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginHorizontal: 2 },
   shiftButtonText: { fontWeight: '800', fontSize: 15 },
+  otButtonRow: { flexDirection: 'row', gap: 10, marginBottom: 5, alignSelf: 'flex-start' },
+  otButton: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#E5E5EA' },
   resetText: { fontSize: 12, marginTop: 5, marginBottom: 15, alignSelf: 'flex-end', fontWeight: '500' },
   divider: { width: '100%', height: 1, opacity: 0.5, marginBottom: 15 },
+  tabContainer: { flexDirection: 'row', width: '100%', marginBottom: 10 },
+  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center' },
   input: { width: '100%', borderRadius: 10, padding: 15, fontSize: 15, marginBottom: 20, minHeight: 80, textAlignVertical: 'top' },
   actionButtonRow: { flexDirection: 'row', width: '100%', borderTopWidth: 0.5, paddingTop: 5 },
   cancelButton: { flex: 1, paddingVertical: 15, alignItems: 'center', borderRightWidth: 0.5 },
