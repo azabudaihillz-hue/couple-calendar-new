@@ -1,3 +1,12 @@
+사용해 보면서 아쉬웠던 디테일한 부분들을 아주 잘 짚어줬어!
+
+말씀하신 두 가지 문제를 해결하기 위해 코드를 깔끔하게 다듬었어.
+
+1. 팝업(스낵바)이 안 사라지는 문제: 앱이 켜질 때 팝업이 뜨고 나서 3초 뒤에 자동으로 스르륵 사라지도록 타이머(useEffect)를 추가했어. 그리고 팝업 위치도 헤더 글자를 가리지 않게 위쪽으로 살짝 조정했어.
+2. 우측 상단 아이콘 정렬 문제: '오늘', '🕒', '🌙' 버튼들이 서로 삐뚤삐뚤하게 보이던 것을 완벽하게 수평 중앙 정렬(Center Alignment)되도록 맞췄어. 또한, 제목("우리만의 캘린더")이 좌우 여백에 밀리지 않고 화면 정중앙에 딱 예쁘게 고정되도록 레이아웃 비율(flex)을 조정했어.
+
+기존 App.tsx 파일의 내용을 전부 지우고, 아래 코드로 통째로 교체해 줘!
+
 import { useEffect, useState } from 'react';
 import {
   Modal,
@@ -136,7 +145,6 @@ export default function App() {
 
   const todayStr = getTodayString();
 
-  // 사진 없이 깔끔하게 동작하도록 색상 원복
   const themeColors = {
     bgOverlay: isDark ? '#000000' : '#F2F2F7', 
     cardBg: isDark ? '#1C1C1E' : '#FFFFFF',
@@ -240,6 +248,14 @@ export default function App() {
 
     return () => { supabase.removeChannel(subscription); };
   }, []);
+
+  // ✅ 스낵바 자동 숨김 기능 (3초 뒤 사라짐)
+  useEffect(() => {
+    if (showSnackbar) {
+      const timer = setTimeout(() => setShowSnackbar(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSnackbar]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -438,13 +454,14 @@ export default function App() {
           </TouchableOpacity>
         )}
 
+        {/* ✅ 간격 및 정렬이 깔끔하게 수정된 헤더 */}
         <View style={styles.header}>
-          <View style={{ width: 90 }} /> 
-          <View style={{ alignItems: 'center', flex: 1 }}>
+          <View style={{ flex: 1 }} />
+          <View style={{ flex: 2, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={[styles.headerTitle, { color: themeColors.text }]}>우리만의 캘린더</Text>
             {dDayText ? <Text style={styles.ddayText}>{dDayText}</Text> : null}
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', width: 90, justifyContent: 'flex-end' }}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
             <TouchableOpacity onPress={goToToday} style={styles.headerIconBtn}>
               <Text style={{ fontSize: 14, fontWeight: '900', color: themeColors.primary }}>오늘</Text>
             </TouchableOpacity>
@@ -725,11 +742,15 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   webCenteringContainer: { flex: 1, width: '100%', maxWidth: 500, alignSelf: 'center' },
   scrollContent: { paddingBottom: 30 },
-  snackbar: { position: 'absolute', top: 85, left: 20, right: 20, backgroundColor: 'rgba(255, 105, 180, 0.95)', padding: 12, borderRadius: 12, zIndex: 100, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  
+  // ✅ 스낵바 위치 조정 (헤더 영역을 가리지 않게 살짝 띄움)
+  snackbar: { position: 'absolute', top: 30, left: 20, right: 20, backgroundColor: 'rgba(255, 105, 180, 0.95)', padding: 12, borderRadius: 12, zIndex: 100, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   snackbarText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginVertical: 10, width: '100%' },
+  
+  // ✅ 헤더 및 우측 아이콘 정렬 수정
+  header: { flexDirection: 'row', paddingHorizontal: 15, marginVertical: 10, width: '100%', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '900' },
-  headerIconBtn: { padding: 8, marginLeft: 2 },
+  headerIconBtn: { padding: 6, marginLeft: 10, justifyContent: 'center', alignItems: 'center' },
   ddayText: { fontSize: 11, color: '#FF69B4', fontWeight: 'bold', marginTop: 2 },
   
   calendarWrapper: { marginHorizontal: Platform.OS === 'web' ? 0 : 15, borderRadius: 15, paddingTop: 5, paddingBottom: 15, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
