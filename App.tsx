@@ -1,13 +1,4 @@
-사용해 보면서 아쉬웠던 디테일한 부분들을 아주 잘 짚어줬어!
-
-말씀하신 두 가지 문제를 해결하기 위해 코드를 깔끔하게 다듬었어.
-
-1. 팝업(스낵바)이 안 사라지는 문제: 앱이 켜질 때 팝업이 뜨고 나서 3초 뒤에 자동으로 스르륵 사라지도록 타이머(useEffect)를 추가했어. 그리고 팝업 위치도 헤더 글자를 가리지 않게 위쪽으로 살짝 조정했어.
-2. 우측 상단 아이콘 정렬 문제: '오늘', '🕒', '🌙' 버튼들이 서로 삐뚤삐뚤하게 보이던 것을 완벽하게 수평 중앙 정렬(Center Alignment)되도록 맞췄어. 또한, 제목("우리만의 캘린더")이 좌우 여백에 밀리지 않고 화면 정중앙에 딱 예쁘게 고정되도록 레이아웃 비율(flex)을 조정했어.
-
-기존 App.tsx 파일의 내용을 전부 지우고, 아래 코드로 통째로 교체해 줘!
-
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Modal,
   Pressable,
@@ -19,7 +10,9 @@ import {
   TouchableOpacity,
   View,
   Platform,
-  ActivityIndicator 
+  ActivityIndicator,
+  Animated,
+  Easing,
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -37,8 +30,15 @@ LocaleConfig.defaultLocale = 'kr';
 const CYCLE_BASE_DATE = new Date('2026-09-08T00:00:00Z');
 const COUPLE_START_DATE = new Date('2026-06-26T00:00:00Z');
 
-// 2026 ~ 2030년 주요 대한민국 공휴일 및 대체공휴일
-const HOLIDAYS: Record<string, string> = {
+// 급여 계산 상수 (통상시급 13,800원 기준)
+const BASE_PAY = 2808400;
+const HOURLY_WAGE = 13800;
+const TAX_RATE = 0.1198;
+const SAVINGS_DEDUCTION = 250000;
+const ADMIN_PIN = '970045';
+
+// 🏛️ 한국천문연구원(KASI) API 연동 전/오프라인 시 사용할 안전 기본 공휴일 데이터
+const DEFAULT_HOLIDAYS: Record<string, string> = {
   '2026-01-01': '신정',
   '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
   '2026-03-01': '삼일절',
@@ -107,12 +107,173 @@ const getCalculatedShift = (dateString: string) => {
 
 const getTodayString = () => {
   const now = new Date();
-  return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  return (
+    now.getFullYear() +
+    '-' +
+    String(now.getMonth() + 1).padStart(2, '0') +
+    '-' +
+    String(now.getDate()).padStart(2, '0')
+  );
 };
 
 const formatDateTime = (ts: number) => {
   const d = new Date(ts);
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+// ==========================================
+// 🎆 풀스크린 리치 인터랙티브 축하 애니메이션
+// ==========================================
+interface CelebrationProps {
+  visible: boolean;
+  type: 'anniv' | 'double_off' | 'date';
+  title: string;
+  subtitle: string;
+  icon: string;
+  onClose: () => void;
+}
+
+const PARTICLE_COUNT = 24;
+const PARTICLE_EMOJIS = ['💕', '💖', '❤️', '✨', '⭐', '🎉', '🌸', '🥂'];
+
+const FullScreenCelebration: React.FC<CelebrationProps> = ({
+  visible,
+  type,
+  title,
+  subtitle,
+  icon,
+  onClose,
+}) => {
+  const animValue = useRef(new Animated.Value(0)).current;
+  const particleAnims = useRef(
+    Array.from({ length: PARTICLE_COUNT }, () => ({
+      x: new Animated.Value(0),
+      y: new Animated.Value(0),
+      opacity: new Animated.Value(1),
+      scale: new Animated.Value(Math.random() * 0.8 + 0.6),
+    }))
+  ).current;
+
+  useEffect(() => {
+    if (visible) {
+      animValue.setValue(0);
+      particleAnims.forEach((p) => {
+        p.x.setValue(0);
+        p.y.setValue(0);
+        p.opacity.setValue(1);
+      });
+
+      // 중앙 축하 카드 팝업
+      Animated.spring(animValue, {
+        toValue: 1,
+        friction: 6,
+        tension: 40,
+        useNativeDriver: Platform.OS !== 'web',
+      }).start();
+
+      // 화려한 파티클 분출 효과
+      const particleAnimations = particleAnims.map((p, idx) => {
+        const angle = (idx / PARTICLE_COUNT) * 2 * Math.PI + (Math.random() - 0.5) * 0.4;
+        const distance = Math.random() * 160 + 90;
+        const targetX = Math.cos(angle) * distance;
+        const targetY = Math.sin(angle) * distance;
+
+        return Animated.parallel([
+          Animated.timing(p.x, {
+            toValue: targetX,
+            duration: 1800,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: Platform.OS !== 'web',
+          }),
+          Animated.timing(p.y, {
+            toValue: targetY,
+            duration: 1800,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: Platform.OS !== 'web',
+          }),
+          Animated.sequence([
+            Animated.delay(1200),
+            Animated.timing(p.opacity, {
+              toValue: 0,
+              duration: 600,
+              useNativeDriver: Platform.OS !== 'web',
+            }),
+          ]),
+        ]);
+      });
+
+      Animated.parallel(particleAnimations).start();
+
+      // 2.8초 후 자동 닫힘 (화면 터치 시 즉시 닫힘)
+      const timer = setTimeout(() => {
+        onClose();
+      }, 2800);
+
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const cardScale = animValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 1],
+  });
+  const cardOpacity = animValue.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 1, 1],
+  });
+
+  return (
+    <Modal visible={visible} transparent={true} animationType="none" onRequestClose={onClose}>
+      <Pressable style={styles.celebrationOverlay} onPress={onClose}>
+        <View style={styles.particleContainer} pointerEvents="none">
+          {particleAnims.map((p, index) => {
+            const emoji = PARTICLE_EMOJIS[index % PARTICLE_EMOJIS.length];
+            return (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.particle,
+                  {
+                    transform: [
+                      { translateX: p.x },
+                      { translateY: p.y },
+                      { scale: p.scale },
+                    ],
+                    opacity: p.opacity,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 22 }}>{emoji}</Text>
+              </Animated.View>
+            );
+          })}
+        </View>
+
+        <Animated.View
+          style={[
+            styles.celebrationCard,
+            {
+              transform: [{ scale: cardScale }],
+              opacity: cardOpacity,
+              borderColor:
+                type === 'double_off'
+                  ? '#FFB4D6'
+                  : type === 'anniv'
+                  ? '#FFD700'
+                  : '#FF69B4',
+            },
+          ]}
+        >
+          <Text style={{ fontSize: 48, marginBottom: 8 }}>{icon}</Text>
+          <Text style={styles.celebrationTitle}>{title}</Text>
+          <Text style={styles.celebrationSubtitle}>{subtitle}</Text>
+          <Text style={styles.celebrationHint}>화면을 터치하면 닫힙니다 ✨</Text>
+        </Animated.View>
+      </Pressable>
+    </Modal>
+  );
 };
 
 export default function App() {
@@ -141,6 +302,33 @@ export default function App() {
   const [memoHistory, setMemoHistory] = useState<any[]>([]);
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
 
+  // 🏛️ 한국천문연구원 특일정보 동적 공휴일 상태 (기본 데이터 + 국가 API 동기화)
+  const [holidays, setHolidays] = useState<Record<string, string>>(DEFAULT_HOLIDAYS);
+
+  // 🔒 비밀 급여 대시보드 상태 (휘발성 - 새로고침 시 무조건 초기화됨)
+  const [vaultModalVisible, setVaultModalVisible] = useState(false);
+  const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+  const [currentViewYearMonth, setCurrentViewYearMonth] = useState(() => getTodayString().slice(0, 7));
+  const [extraBonusInput, setExtraBonusInput] = useState('0');
+
+  // 🎆 Lottie / 풀스크린 인터랙티브 애니메이션 상태
+  const [isAnimationEnabled, setIsAnimationEnabled] = useState(true);
+  const [celebration, setCelebration] = useState<{
+    visible: boolean;
+    type: 'anniv' | 'double_off' | 'date';
+    title: string;
+    subtitle: string;
+    icon: string;
+  }>({
+    visible: false,
+    type: 'anniv',
+    title: '',
+    subtitle: '',
+    icon: '🎉',
+  });
+
   const [calendarKey, setCalendarKey] = useState(0);
 
   const todayStr = getTodayString();
@@ -157,6 +345,35 @@ export default function App() {
     dateBg: isDark ? 'rgba(255, 105, 180, 0.2)' : 'rgba(255, 240, 245, 0.9)', 
   };
 
+  // 🏛️ 한국천문연구원 특일정보 API 동기화 함수
+  const syncHolidaysFromAPI = useCallback(async (year: string) => {
+    try {
+      const cacheKey = `@cached_holidays_${year}`;
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setHolidays((prev) => ({ ...prev, ...parsed }));
+      }
+
+      const apiUrl = Platform.OS === 'web' ? `/api/holidays?year=${year}` : undefined;
+      if (apiUrl) {
+        const res = await fetch(apiUrl).catch(() => null);
+        if (res && res.ok) {
+          const json = await res.json().catch(() => null);
+          if (json && json.holidays && Object.keys(json.holidays).length > 0) {
+            setHolidays((prev) => {
+              const updated = { ...prev, ...json.holidays };
+              AsyncStorage.setItem(cacheKey, JSON.stringify(json.holidays)).catch(() => {});
+              return updated;
+            });
+          }
+        }
+      }
+    } catch {
+      // 오프라인이거나 서버리스 배포 전인 경우 기본 DEFAULT_HOLIDAYS 유지
+    }
+  }, []);
+
   const loadHistory = async () => {
     try {
       const hist = await AsyncStorage.getItem('@memo_history');
@@ -164,6 +381,24 @@ export default function App() {
     } catch (e) {
       console.error('History load error', e);
     }
+  };
+
+  const loadSettings = async () => {
+    try {
+      const animPref = await AsyncStorage.getItem('@anim_enabled');
+      if (animPref !== null) {
+        setIsAnimationEnabled(animPref === 'true');
+      }
+    } catch (e) {
+      console.error('Settings load error', e);
+    }
+  };
+
+  // ✨ 애니메이션 켜기/끄기 원클릭 토글
+  const toggleAnimationSetting = async () => {
+    const nextVal = !isAnimationEnabled;
+    setIsAnimationEnabled(nextVal);
+    await AsyncStorage.setItem('@anim_enabled', String(nextVal));
   };
 
   const logMemoChange = async (targetDate: string, tab: string, oldText: string, newText: string) => {
@@ -231,6 +466,10 @@ export default function App() {
   useEffect(() => {
     fetchCalendarData(true);
     loadHistory();
+    loadSettings();
+
+    const currentYear = todayStr.slice(0, 4);
+    syncHolidaysFromAPI(currentYear);
 
     const subscription = supabase
       .channel('public:couple_calendar')
@@ -247,9 +486,13 @@ export default function App() {
       .subscribe();
 
     return () => { supabase.removeChannel(subscription); };
-  }, []);
+  }, [syncHolidaysFromAPI]);
 
-  // ✅ 스낵바 자동 숨김 기능 (3초 뒤 사라짐)
+  useEffect(() => {
+    const viewYear = currentViewYearMonth.slice(0, 4);
+    syncHolidaysFromAPI(viewYear);
+  }, [currentViewYearMonth, syncHolidaysFromAPI]);
+
   useEffect(() => {
     if (showSnackbar) {
       const timer = setTimeout(() => setShowSnackbar(false), 3000);
@@ -304,7 +547,7 @@ export default function App() {
     if (closestDday === 0) setDDayText('오늘 데이트 날이에요! ♥');
     else if (closestDday !== null) setDDayText(`다음 데이트까지 D-${closestDday} ♥`);
     else setDDayText('');
-  }, [haeOverrides, dawonOverrides, memos, haeMemos, dawonMemos, isLoading, todayStr]);
+  }, [haeOverrides, dawonOverrides, memos, haeMemos, dawonMemos, isLoading, todayStr, holidays]);
 
   const syncToSupabase = async (date: string, hOver: any, dOver: any, mem: string, hMem: string, dMem: string) => {
     try {
@@ -324,14 +567,56 @@ export default function App() {
 
   const handleManualRefresh = async () => {
     await fetchCalendarData(false);
+    const viewYear = currentViewYearMonth.slice(0, 4);
+    await syncHolidaysFromAPI(viewYear);
   };
 
+  // 날짜 클릭 시 처리 (애니메이션 판독 & 모달 오픈)
   const onDayPress = (dateString: string) => {
     setSelectedDate(dateString);
     setMemoInput(memos[dateString] || '');
     setHaeMemoInput(haeMemos[dateString] || '');
     setDawonMemoInput(dawonMemos[dateString] || '');
     setActiveTab('공용');
+
+    // 🎆 애니메이션 발동 조건 검사 (활성화 상태일 때만)
+    if (isAnimationEnabled) {
+      const marking = markedDates[dateString] || {};
+      const haeShift = marking.haeShift;
+      const dawonShift = marking.dawonShift;
+      const hasDateMemo = (marking.memo && marking.memo.includes('♥')) || (memos[dateString] && memos[dateString].includes('♥'));
+      const isDoubleOff = haeShift?.id === 'OFF' && dawonShift?.id === 'OFF';
+
+      if (marking.annivText) {
+        // 조건 1: D-Day 달성 (100일, 1주년, 생일 등)
+        setCelebration({
+          visible: true,
+          type: 'anniv',
+          title: marking.annivText,
+          subtitle: '사랑과 축복이 가득한 소중한 날이에요! 💖',
+          icon: marking.annivText.includes('생일') ? '🎂' : '🎉',
+        });
+      } else if (isDoubleOff) {
+        // 조건 2: 둘 다 쉬는 날 (겹휴무)
+        setCelebration({
+          visible: true,
+          type: 'double_off',
+          title: '💕 겹휴무 달성!',
+          subtitle: '둘 다 쉬는 날이에요! 푹 쉬고 힐링 데이트해요 ✨',
+          icon: '🌴',
+        });
+      } else if (hasDateMemo) {
+        // 조건 3: 데이트 날짜 클릭 시 (♥)
+        setCelebration({
+          visible: true,
+          type: 'date',
+          title: '❤️ 데이트 날!',
+          subtitle: '퇴근하고 만나요! 설레는 하루 🥰',
+          icon: '💖',
+        });
+      }
+    }
+
     setModalVisible(true);
   };
 
@@ -417,6 +702,86 @@ export default function App() {
     syncToSupabase(selectedDate, haeOverrides[selectedDate], null, memoInput, haeMemoInput, dawonMemoInput);
   };
 
+  // 🔒 비밀 급여 대시보드 열기/닫기/잠금해제 함수 (휘발성 메모리 보안)
+  const openVaultModal = () => {
+    setIsVaultUnlocked(false);
+    setPinInput('');
+    setPinError(false);
+    setVaultModalVisible(true);
+  };
+
+  const closeVaultModal = () => {
+    setVaultModalVisible(false);
+    setIsVaultUnlocked(false);
+    setPinInput('');
+    setPinError(false);
+  };
+
+  const handlePinSubmit = (text: string) => {
+    setPinInput(text);
+    setPinError(false);
+    if (text === ADMIN_PIN) {
+      setIsVaultUnlocked(true);
+    } else if (text.length >= 6) {
+      setPinError(true);
+    }
+  };
+
+  // 📊 현재 보고 있는 달(currentViewYearMonth)의 급여 & OT 실시간 산출
+  // (한국천문연구원 API로 실시간 동기화된 holidays 자동 연동)
+  const calculateMonthlySalary = () => {
+    let normalNightCount = 0;
+    let holidayNightCount = 0;
+    let holidayDaySwingCount = 0;
+    let totalOtHours = 0;
+
+    Object.keys(markedDates).forEach((dateStr) => {
+      if (dateStr.startsWith(currentViewYearMonth)) {
+        const shift = markedDates[dateStr]?.haeShift;
+        const isHol = !!holidays[dateStr];
+        if (shift) {
+          if (shift.ot) totalOtHours += Number(shift.ot);
+          if (shift.id === 'GY') {
+            if (isHol) holidayNightCount += 1;
+            else normalNightCount += 1;
+          } else if ((shift.id === 'DAY' || shift.id === 'SW') && isHol) {
+            holidayDaySwingCount += 1;
+          }
+        }
+      }
+    });
+
+    const otAllowance = Math.round(totalOtHours * HOURLY_WAGE * 1.5);
+    const normalNightAllowance = Math.round(normalNightCount * 8 * HOURLY_WAGE * 0.5);
+    const holidayNightAllowance = Math.round(holidayNightCount * 8 * HOURLY_WAGE * 2.0);
+    const holidayDaySwingAllowance = Math.round(holidayDaySwingCount * 8 * HOURLY_WAGE * 1.5);
+    const bonus = parseInt(extraBonusInput.replace(/[^0-9]/g, '') || '0', 10);
+
+    const totalAllowance = otAllowance + normalNightAllowance + holidayNightAllowance + holidayDaySwingAllowance;
+    const grossPay = BASE_PAY + totalAllowance + bonus;
+    const taxDeduction = Math.round(grossPay * TAX_RATE);
+    const netPayBeforeSavings = grossPay - taxDeduction;
+    const finalNetPay = netPayBeforeSavings - SAVINGS_DEDUCTION;
+
+    return {
+      normalNightCount,
+      holidayNightCount,
+      holidayDaySwingCount,
+      totalOtHours,
+      otAllowance,
+      normalNightAllowance,
+      holidayNightAllowance,
+      holidayDaySwingAllowance,
+      bonus,
+      grossPay,
+      taxDeduction,
+      netPayBeforeSavings,
+      finalNetPay,
+    };
+  };
+
+  const salaryStats = calculateMonthlySalary();
+
   const currentHaeShift = haeOverrides[selectedDate] || (selectedDate ? getCalculatedShift(selectedDate) : null);
   const currentDawonShift = dawonOverrides[selectedDate];
   
@@ -433,6 +798,7 @@ export default function App() {
   }
 
   const goToToday = () => {
+    setCurrentViewYearMonth(todayStr.slice(0, 7));
     setCalendarKey(prev => prev + 1);
   };
 
@@ -454,9 +820,18 @@ export default function App() {
           </TouchableOpacity>
         )}
 
-        {/* ✅ 간격 및 정렬이 깔끔하게 수정된 헤더 */}
         <View style={styles.header}>
-          <View style={{ flex: 1 }} />
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity onPress={openVaultModal} style={styles.headerIconBtn}>
+              <Text style={{ fontSize: 18 }}>🔒</Text>
+            </TouchableOpacity>
+            {/* 🎆 인터랙티브 애니메이션 ON/OFF 원클릭 토글 버튼 */}
+            <TouchableOpacity onPress={toggleAnimationSetting} style={styles.headerIconBtn}>
+              <Text style={{ fontSize: 16, opacity: isAnimationEnabled ? 1 : 0.35 }}>
+                {isAnimationEnabled ? '✨' : '💨'}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <View style={{ flex: 2, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={[styles.headerTitle, { color: themeColors.text }]}>우리만의 캘린더</Text>
             {dDayText ? <Text style={styles.ddayText}>{dDayText}</Text> : null}
@@ -466,10 +841,10 @@ export default function App() {
               <Text style={{ fontSize: 14, fontWeight: '900', color: themeColors.primary }}>오늘</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setHistoryModalVisible(true)} style={styles.headerIconBtn}>
-              <Text style={{ fontSize: 19 }}>🕒</Text>
+              <Text style={{ fontSize: 18 }}>🕒</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setIsDark(!isDark)} style={styles.headerIconBtn}>
-              <Text style={{ fontSize: 19 }}>{isDark ? '☀️' : '🌙'}</Text>
+              <Text style={{ fontSize: 18 }}>{isDark ? '☀️' : '🌙'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -492,6 +867,11 @@ export default function App() {
               current={todayStr}
               initialDate={todayStr}
               enableSwipeMonths={true}
+              onMonthChange={(month: any) => {
+                if (month && month.dateString) {
+                  setCurrentViewYearMonth(month.dateString.slice(0, 7));
+                }
+              }}
               style={styles.calendar}
               theme={{
                 calendarBackground: 'transparent',
@@ -510,7 +890,7 @@ export default function App() {
                 const isToday = dateStr === todayStr;
                 const isDisabled = state === 'disabled';
                 const isDateDay = marking.memo && marking.memo.includes('♥');
-                const isHoliday = HOLIDAYS[dateStr];
+                const isHoliday = holidays[dateStr];
 
                 return (
                   <TouchableOpacity
@@ -580,12 +960,130 @@ export default function App() {
             {isRefreshing ? (
                <ActivityIndicator size="small" color="#FF3B30" />
             ) : (
-               <Text style={styles.refreshButtonText}>🔄 최신 데이터 새로고침</Text>
+               <Text style={styles.refreshButtonText}>🔄 최신 데이터 & 공휴일 새로고침</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
       </View>
 
+      {/* 🎆 풀스크린 리치 인터랙티브 축하 애니메이션 모달 */}
+      <FullScreenCelebration
+        visible={celebration.visible}
+        type={celebration.type}
+        title={celebration.title}
+        subtitle={celebration.subtitle}
+        icon={celebration.icon}
+        onClose={() => setCelebration((prev) => ({ ...prev, visible: false }))}
+      />
+
+      {/* 🔒 관리자 전용 비밀 급여 & OT 대시보드 모달 */}
+      <Modal visible={vaultModalVisible} transparent={true} animationType="fade" onRequestClose={closeVaultModal}>
+        <Pressable style={styles.modalOverlay} onPress={closeVaultModal}>
+          <Pressable style={[styles.modalContent, { backgroundColor: themeColors.modalBg }]} onPress={(e) => e.stopPropagation()}>
+            {!isVaultUnlocked ? (
+              <View style={{ alignItems: 'center', width: '100%', paddingVertical: 15 }}>
+                <Text style={{ fontSize: 32, marginBottom: 10 }}>🔒</Text>
+                <Text style={[styles.modalDate, { color: themeColors.text, marginBottom: 6 }]}>관리자 보안 영역</Text>
+                <Text style={{ fontSize: 12, color: themeColors.subText, marginBottom: 20, textAlign: 'center' }}>
+                  개인 급여 및 OT 통계는 비밀번호 입력 후 열람 가능합니다.{'\n'}(창을 닫거나 새로고침하면 즉시 다시 잠깁니다)
+                </Text>
+                <TextInput
+                  style={[styles.pinInputBox, { color: themeColors.text, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7', borderColor: pinError ? '#FF3B30' : themeColors.divider }]}
+                  placeholder="비밀번호 6자리 입력"
+                  placeholderTextColor={themeColors.subText}
+                  secureTextEntry={true}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  value={pinInput}
+                  onChangeText={handlePinSubmit}
+                  autoFocus={true}
+                />
+                {pinError && (
+                  <Text style={{ color: '#FF3B30', fontSize: 12, marginTop: 8, fontWeight: 'bold' }}>
+                    비밀번호가 일치하지 않습니다.
+                  </Text>
+                )}
+                <TouchableOpacity onPress={closeVaultModal} style={{ marginTop: 20, padding: 10 }}>
+                  <Text style={{ color: themeColors.subText, fontWeight: '600' }}>닫기</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ width: '100%' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                  <Text style={[styles.modalDate, { color: themeColors.text }]}>📊 {currentViewYearMonth} 급여 리포트</Text>
+                  <TouchableOpacity onPress={closeVaultModal}>
+                    <Text style={{ color: '#FF3B30', fontWeight: 'bold', fontSize: 14 }}>잠금 및 닫기 🔒</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={[styles.statBox, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}>
+                  <Text style={{ fontSize: 12, color: themeColors.subText, marginBottom: 4 }}>예상 실수령액 (세금 11.98% + 저축 25만 차감)</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '900', color: themeColors.primary }}>
+                    {salaryStats.finalNetPay.toLocaleString()}원
+                  </Text>
+                  <Text style={{ fontSize: 11, color: themeColors.subText, marginTop: 4 }}>
+                    순수 세후(저축 차감 전): {salaryStats.netPayBeforeSavings.toLocaleString()}원
+                  </Text>
+                </View>
+
+                <Text style={[styles.sectionTitle, { color: themeColors.text, marginTop: 10 }]}>
+                  ⏱️ {currentViewYearMonth} 근무 & 가산 내역 (시급 13,800원)
+                </Text>
+                <View style={styles.statRow}>
+                  <Text style={{ color: themeColors.subText, fontSize: 13 }}>기본급 (고정)</Text>
+                  <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>{BASE_PAY.toLocaleString()}원</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={{ color: themeColors.subText, fontSize: 13 }}>평일 연장 (총 {salaryStats.totalOtHours}시간 × 1.5배)</Text>
+                  <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>+{salaryStats.otAllowance.toLocaleString()}원</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={{ color: themeColors.subText, fontSize: 13 }}>일반 야간 ({salaryStats.normalNightCount}회 × 8h × 0.5배)</Text>
+                  <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>+{salaryStats.normalNightAllowance.toLocaleString()}원</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={{ color: themeColors.subText, fontSize: 13 }}>공휴일 야간 ({salaryStats.holidayNightCount}회 × 8h × 2.0배)</Text>
+                  <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>+{salaryStats.holidayNightAllowance.toLocaleString()}원</Text>
+                </View>
+                {salaryStats.holidayDaySwingCount > 0 && (
+                  <View style={styles.statRow}>
+                    <Text style={{ color: themeColors.subText, fontSize: 13 }}>공휴일 주간/스윙 ({salaryStats.holidayDaySwingCount}회 × 1.5배)</Text>
+                    <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>+{salaryStats.holidayDaySwingAllowance.toLocaleString()}원</Text>
+                  </View>
+                )}
+
+                <View style={[styles.statRow, { alignItems: 'center', marginTop: 6 }]}>
+                  <Text style={{ color: themeColors.subText, fontSize: 13 }}>별도 상여/배려금 (직접 입력)</Text>
+                  <TextInput
+                    style={[styles.bonusInput, { color: themeColors.text, backgroundColor: isDark ? '#38383A' : '#E5E5EA' }]}
+                    keyboardType="number-pad"
+                    value={extraBonusInput}
+                    onChangeText={setExtraBonusInput}
+                    placeholder="0"
+                  />
+                </View>
+
+                <View style={[styles.divider, { backgroundColor: themeColors.divider, marginVertical: 12 }]} />
+
+                <View style={styles.statRow}>
+                  <Text style={{ color: themeColors.text, fontWeight: 'bold', fontSize: 14 }}>세전 총액</Text>
+                  <Text style={{ color: themeColors.text, fontWeight: 'bold', fontSize: 14 }}>{salaryStats.grossPay.toLocaleString()}원</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={{ color: '#FF3B30', fontSize: 13 }}>제세공과금 공제 (11.98%)</Text>
+                  <Text style={{ color: '#FF3B30', fontSize: 13 }}>-{salaryStats.taxDeduction.toLocaleString()}원</Text>
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={{ color: '#FF3B30', fontSize: 13 }}>사내 저축 공제</Text>
+                  <Text style={{ color: '#FF3B30', fontSize: 13 }}>-{SAVINGS_DEDUCTION.toLocaleString()}원</Text>
+                </View>
+              </ScrollView>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 날짜 상세 편집 모달 */}
       <Modal visible={modalVisible} transparent={true} animationType="fade" onRequestClose={closeModalAndSave}>
         <Pressable style={styles.modalOverlay} onPress={closeModalAndSave}>
           <Pressable style={[styles.modalContent, { backgroundColor: themeColors.modalBg }]} onPress={(e) => e.stopPropagation()}>
@@ -597,7 +1095,7 @@ export default function App() {
                 </TouchableOpacity>
                 
                 <Text style={[styles.modalDate, { color: themeColors.text }]}>
-                  {selectedDate} {HOLIDAYS[selectedDate] ? `(${HOLIDAYS[selectedDate]})` : ''}
+                  {selectedDate} {holidays[selectedDate] ? `(${holidays[selectedDate]})` : ''}
                 </Text>
 
                 <TouchableOpacity onPress={() => navigateDate('next')} style={{ padding: 10 }}>
@@ -687,6 +1185,7 @@ export default function App() {
         </Pressable>
       </Modal>
 
+      {/* 수정 이력 모달 */}
       <Modal visible={historyModalVisible} transparent={true} animationType="slide">
         <SafeAreaView style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <View style={[styles.historyModalContainer, { backgroundColor: themeColors.cardBg }]}>
@@ -742,15 +1241,11 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   webCenteringContainer: { flex: 1, width: '100%', maxWidth: 500, alignSelf: 'center' },
   scrollContent: { paddingBottom: 30 },
-  
-  // ✅ 스낵바 위치 조정 (헤더 영역을 가리지 않게 살짝 띄움)
   snackbar: { position: 'absolute', top: 30, left: 20, right: 20, backgroundColor: 'rgba(255, 105, 180, 0.95)', padding: 12, borderRadius: 12, zIndex: 100, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   snackbarText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
-  
-  // ✅ 헤더 및 우측 아이콘 정렬 수정
   header: { flexDirection: 'row', paddingHorizontal: 15, marginVertical: 10, width: '100%', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '900' },
-  headerIconBtn: { padding: 6, marginLeft: 10, justifyContent: 'center', alignItems: 'center' },
+  headerIconBtn: { padding: 6, marginHorizontal: 3, justifyContent: 'center', alignItems: 'center' },
   ddayText: { fontSize: 11, color: '#FF69B4', fontWeight: 'bold', marginTop: 2 },
   
   calendarWrapper: { marginHorizontal: Platform.OS === 'web' ? 0 : 15, borderRadius: 15, paddingTop: 5, paddingBottom: 15, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
@@ -780,6 +1275,11 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: '85%', maxWidth: 400, borderRadius: 20, padding: 20, maxHeight: '85%' },
   
+  pinInputBox: { width: '80%', paddingVertical: 12, paddingHorizontal: 15, borderRadius: 12, fontSize: 18, textAlign: 'center', letterSpacing: 6, borderWidth: 1, fontWeight: 'bold' },
+  statBox: { width: '100%', padding: 15, borderRadius: 12, alignItems: 'center', marginBottom: 10 },
+  statRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingVertical: 6 },
+  bonusInput: { width: 100, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6, textAlign: 'right', fontSize: 13, fontWeight: 'bold' },
+
   modalHeaderNavigation: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 },
   modalDate: { fontSize: 18, fontWeight: '600' },
   
@@ -805,5 +1305,28 @@ const styles = StyleSheet.create({
   historyModalContainer: { width: '100%', height: '70%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxWidth: 500, alignSelf: 'center' },
   historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 15, borderBottomWidth: 1, marginBottom: 10 },
   historyTitle: { fontSize: 18, fontWeight: 'bold' },
-  historyItem: { paddingVertical: 12, borderBottomWidth: 0.5, paddingHorizontal: 5 }
+  historyItem: { paddingVertical: 12, borderBottomWidth: 0.5, paddingHorizontal: 5 },
+
+  // 🎆 인터랙티브 축하 풀스크린 애니메이션 스타일
+  celebrationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  particleContainer: { position: 'absolute', width: 1, height: 1, alignItems: 'center', justifyContent: 'center' },
+  particle: { position: 'absolute' },
+  celebrationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 24,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    width: '82%',
+    maxWidth: 340,
+    borderWidth: 2.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  celebrationTitle: { fontSize: 20, fontWeight: '900', color: '#1C1C1E', marginBottom: 8, textAlign: 'center' },
+  celebrationSubtitle: { fontSize: 14, color: '#48484A', textAlign: 'center', lineHeight: 20, marginBottom: 16, fontWeight: '500' },
+  celebrationHint: { fontSize: 11, color: '#8E8E93', fontWeight: 'bold' },
 });
