@@ -36,6 +36,24 @@ const getNextDayICSDate = (dateStr: string) => {
   return d.toISOString().split('T')[0].replace(/-/g, '');
 };
 
+// 💡 [핵심 해결] 텍스트 내의 줄바꿈(\n)이나 특수기호를 아이폰 캘린더 규격에 맞게 안전하게 변환
+const escapeICS = (text: string) => {
+  if (!text) return '';
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/[;,]/g, '\\$&')
+    .replace(/\r?\n/g, '\\n');
+};
+
+// 달력 제목용 변환 (줄바꿈을 띄어쓰기로 변환)
+const escapeSummary = (text: string) => {
+  if (!text) return '';
+  return text
+    .replace(/\r?\n/g, ' ')
+    .replace(/\\/g, '\\\\')
+    .replace(/[;,]/g, '\\$&');
+};
+
 export default async function handler(req: Request) {
   const url = new URL(req.url);
   const supabaseUrl = url.searchParams.get('u') || process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
@@ -43,6 +61,7 @@ export default async function handler(req: Request) {
 
   const overridesMap: Record<string, any> = {};
 
+  // Supabase 실시간 메모 조회
   if (supabaseUrl && supabaseKey) {
     try {
       const res = await fetch(`${supabaseUrl}/rest/v1/couple_calendar?select=*`, {
@@ -64,6 +83,7 @@ export default async function handler(req: Request) {
     }
   }
 
+  // 오늘 기준 30일 전부터 180일 후까지 (총 210일) 생성
   const now = new Date();
   const startBase = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 30));
   const events: string[] = [];
@@ -86,19 +106,19 @@ export default async function handler(req: Request) {
 
     let summary = `[해:${haeText} | 다원:${dawonText}]`;
     if (isDateDay) {
-      const cleanMemo = memo.replace('♥', '').trim();
+      const cleanMemo = escapeSummary(memo.replace('♥', '').trim());
       summary = `❤️데이트 ${cleanMemo ? `(${cleanMemo}) ` : ''}${summary}`;
     } else if (isDoubleOff) {
       summary = `💕겹휴무! ${summary}`;
     } else if (memo) {
-      summary = `📝${memo} ${summary}`;
+      summary = `📝${escapeSummary(memo)} ${summary}`;
     }
 
     const descriptionLines = [
       `해 근무: ${haeShift.label}${haeShift.ot ? ` + OT ${haeShift.ot}시간` : ''}`,
       `다원 근무: ${dawonShift ? dawonShift.label + (dawonShift.ot ? ` + OT ${dawonShift.ot}시간` : '') : '미입력'}`,
     ];
-    if (memo) descriptionLines.push(`공용 메모: ${memo}`);
+    if (memo) descriptionLines.push(`공용 메모: ${escapeICS(memo)}`);
 
     events.push(
       [
@@ -108,7 +128,7 @@ export default async function handler(req: Request) {
         `DTSTART;VALUE=DATE:${formatICSDate(dateStr)}`,
         `DTEND;VALUE=DATE:${getNextDayICSDate(dateStr)}`,
         `SUMMARY:${summary}`,
-        `DESCRIPTION:${descriptionLines.join('\\n')}`,
+        `DESCRIPTION:${descriptionLines.join('\\n')}`, // 내부 줄바꿈 안전 적용
         'END:VEVENT',
       ].join('\r\n')
     );
