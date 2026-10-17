@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Modal,
   Pressable,
@@ -11,8 +11,6 @@ import {
   View,
   Platform,
   ActivityIndicator,
-  Animated,
-  Easing,
   Linking,
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
@@ -38,7 +36,7 @@ const TAX_RATE = 0.1198;
 const SAVINGS_DEDUCTION = 250000;
 const ADMIN_PIN = '970045';
 
-// 수도권 기본 좌표 (Open-Meteo 날씨 예보용)
+// 수도권 기본 좌표 (Open-Meteo 예보용)
 const DEFAULT_LAT = 37.50;
 const DEFAULT_LON = 126.85;
 
@@ -46,53 +44,53 @@ const DEFAULT_HOLIDAYS: Record<string, string> = {
   '2026-01-01': '신정',
   '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
   '2026-03-01': '삼일절',
-  '2026-05-05': '어린이날', '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일(부처님오신날)',
-  '2026-06-03': '제9회 지방선거', '2026-06-06': '현충일',
-  '2026-08-15': '광복절', '2026-08-17': '대체공휴일(광복절)',
+  '2026-05-05': '어린이날', '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일',
+  '2026-06-03': '지방선거', '2026-06-06': '현충일',
+  '2026-08-15': '광복절', '2026-08-17': '대체공휴일',
   '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴',
-  '2026-10-03': '개천절', '2026-10-05': '대체공휴일(개천절)', '2026-10-09': '한글날',
-  '2026-12-25': '기독탄신일',
+  '2026-10-03': '개천절', '2026-10-05': '대체공휴일', '2026-10-09': '한글날',
+  '2026-12-25': '성탄절',
   '2027-01-01': '신정',
-  '2027-02-06': '설날 연휴', '2027-02-07': '설날', '2027-02-08': '설날 연휴', '2027-02-09': '대체공휴일(설날)',
-  '2027-03-01': '삼일절', '2027-03-03': '제21대 대통령선거', '2027-05-05': '어린이날', '2027-05-13': '부처님오신날',
-  '2027-06-06': '현충일', '2027-06-07': '대체공휴일(현충일)',
-  '2027-08-15': '광복절', '2027-08-16': '대체공휴일(광복절)',
+  '2027-02-06': '설날 연휴', '2027-02-07': '설날', '2027-02-08': '설날 연휴', '2027-02-09': '대체공휴일',
+  '2027-03-01': '삼일절', '2027-03-03': '대통령선거', '2027-05-05': '어린이날', '2027-05-13': '부처님오신날',
+  '2027-06-06': '현충일', '2027-06-07': '대체공휴일',
+  '2027-08-15': '광복절', '2027-08-16': '대체공휴일',
   '2027-09-14': '추석 연휴', '2027-09-15': '추석', '2027-09-16': '추석 연휴',
-  '2027-10-03': '개천절', '2027-10-04': '대체공휴일(개천절)', '2027-10-09': '한글날', '2027-10-11': '대체공휴일(한글날)',
-  '2027-12-25': '기독탄신일',
+  '2027-10-03': '개천절', '2027-10-04': '대체공휴일', '2027-10-09': '한글날', '2027-10-11': '대체공휴일',
+  '2027-12-25': '성탄절',
   '2028-01-01': '신정',
   '2028-01-26': '설날 연휴', '2028-01-27': '설날', '2028-01-28': '설날 연휴',
-  '2028-03-01': '삼일절', '2028-04-12': '제23대 국회의원선거', '2028-05-02': '부처님오신날', '2028-05-05': '어린이날',
+  '2028-03-01': '삼일절', '2028-04-12': '국회의원선거', '2028-05-02': '부처님오신날', '2028-05-05': '어린이날',
   '2028-06-06': '현충일', '2028-08-15': '광복절',
-  '2028-10-02': '추석 연휴', '2028-10-03': '추석/개천절', '2028-10-04': '추석 연휴', '2028-10-05': '대체공휴일(개천절)',
-  '2028-10-09': '한글날', '2028-12-25': '기독탄신일',
+  '2028-10-02': '추석 연휴', '2028-10-03': '추석/개천절', '2028-10-04': '추석 연휴', '2028-10-05': '대체공휴일',
+  '2028-10-09': '한글날', '2028-12-25': '성탄절',
   '2029-01-01': '신정',
   '2029-02-12': '설날 연휴', '2029-02-13': '설날', '2029-02-14': '설날 연휴',
-  '2029-03-01': '삼일절', '2029-05-05': '어린이날', '2029-05-07': '대체공휴일(어린이날)', '2029-05-20': '부처님오신날', '2029-05-21': '대체공휴일(부처님오신날)',
+  '2029-03-01': '삼일절', '2029-05-05': '어린이날', '2029-05-07': '대체공휴일', '2029-05-20': '부처님오신날', '2029-05-21': '대체공휴일',
   '2029-06-06': '현충일', '2029-08-15': '광복절',
-  '2029-09-21': '추석 연휴', '2029-09-22': '추석', '2029-09-23': '추석 연휴', '2029-09-24': '대체공휴일(추석)',
-  '2029-10-03': '개천절', '2029-10-09': '한글날', '2029-12-25': '기독탄신일',
+  '2029-09-21': '추석 연휴', '2029-09-22': '추석', '2029-09-23': '추석 연휴', '2029-09-24': '대체공휴일',
+  '2029-10-03': '개천절', '2029-10-09': '한글날', '2029-12-25': '성탄절',
   '2030-01-01': '신정',
-  '2030-02-02': '설날 연휴', '2030-02-03': '설날', '2030-02-04': '설날 연휴', '2030-02-05': '대체공휴일(설날)',
-  '2030-03-01': '삼일절', '2030-05-05': '어린이날', '2030-05-06': '대체공휴일(어린이날)', '2030-05-09': '부처님오신날',
-  '2030-06-05': '제10회 지방선거', '2030-06-06': '현충일', '2030-08-15': '광복절',
+  '2030-02-02': '설날 연휴', '2030-02-03': '설날', '2030-02-04': '설날 연휴', '2030-02-05': '대체공휴일',
+  '2030-03-01': '삼일절', '2030-05-05': '어린이날', '2030-05-06': '대체공휴일', '2030-05-09': '부처님오신날',
+  '2030-06-05': '지방선거', '2030-06-06': '현충일', '2030-08-15': '광복절',
   '2030-09-11': '추석 연휴', '2030-09-12': '추석', '2030-09-13': '추석 연휴',
-  '2030-10-03': '개천절', '2030-10-09': '한글날', '2030-12-25': '기독탄신일',
+  '2030-10-03': '개천절', '2030-10-09': '한글날', '2030-12-25': '성탄절',
 };
 
 const HAE_SHIFTS = {
-  DAY: { id: 'DAY', label: '데이', text: 'D', color: '#FFF3B0', textColor: '#1C1C1E' },
-  SW:  { id: 'SW', label: '스윙', text: 'S', color: '#BDE0FE', textColor: '#1C1C1E' },
-  GY:  { id: 'GY', label: '야간', text: 'G', color: '#D3D3D3', textColor: '#1C1C1E' },
-  OFF: { id: 'OFF', label: '휴무', text: '휴', color: '#FFCAD4', textColor: '#1C1C1E' },
+  DAY: { id: 'DAY', label: '데이', text: 'D', color: '#FEF08A', textColor: '#854D0E' },
+  SW:  { id: 'SW', label: '스윙', text: 'S', color: '#BFDBFE', textColor: '#1E40AF' },
+  GY:  { id: 'GY', label: '야간', text: 'G', color: '#E4E4E7', textColor: '#27272A' },
+  OFF: { id: 'OFF', label: '휴무', text: '휴', color: '#FECDD3', textColor: '#9F1239' },
 };
 
 const DAWON_SHIFTS = {
-  DAY: { id: 'DAY', label: '데이', text: 'D', color: '#FFF3B0', textColor: '#1C1C1E' },
-  EVE: { id: 'EVE', label: '이브닝', text: 'E', color: '#E0C3FC', textColor: '#1C1C1E' },
-  SW:  { id: 'SW', label: '스윙', text: 'S', color: '#BDE0FE', textColor: '#1C1C1E' },
-  GY:  { id: 'GY', label: '야간', text: 'G', color: '#D3D3D3', textColor: '#1C1C1E' },
-  OFF: { id: 'OFF', label: '휴무', text: '휴', color: '#FFCAD4', textColor: '#1C1C1E' },
+  DAY: { id: 'DAY', label: '데이', text: 'D', color: '#FEF08A', textColor: '#854D0E' },
+  EVE: { id: 'EVE', label: '이브닝', text: 'E', color: '#E9D5FF', textColor: '#581C87' },
+  SW:  { id: 'SW', label: '스윙', text: 'S', color: '#BFDBFE', textColor: '#1E40AF' },
+  GY:  { id: 'GY', label: '야간', text: 'G', color: '#E4E4E7', textColor: '#27272A' },
+  OFF: { id: 'OFF', label: '휴무', text: '휴', color: '#FECDD3', textColor: '#9F1239' },
 };
 
 const getWeatherInfo = (code: number) => {
@@ -137,159 +135,27 @@ const formatDateTime = (ts: number) => {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-interface CelebrationProps {
-  visible: boolean;
-  type: 'anniv' | 'double_off' | 'date';
-  title: string;
-  subtitle: string;
-  icon: string;
-  onClose: () => void;
-}
-
-const PARTICLE_COUNT = 24;
-const PARTICLE_EMOJIS = ['💕', '💖', '❤️', '✨', '⭐', '🎉', '🌸', '🥂'];
-
-const FullScreenCelebration: React.FC<CelebrationProps> = ({
-  visible,
-  type,
-  title,
-  subtitle,
-  icon,
-  onClose,
-}) => {
-  const animValue = useRef(new Animated.Value(0)).current;
-  const particleAnims = useRef(
-    Array.from({ length: PARTICLE_COUNT }, () => ({
-      x: new Animated.Value(0),
-      y: new Animated.Value(0),
-      opacity: new Animated.Value(1),
-      scale: new Animated.Value(Math.random() * 0.8 + 0.6),
-    }))
-  ).current;
-
-  useEffect(() => {
-    if (visible) {
-      animValue.setValue(0);
-      particleAnims.forEach((p) => {
-        p.x.setValue(0);
-        p.y.setValue(0);
-        p.opacity.setValue(1);
-      });
-
-      Animated.spring(animValue, {
-        toValue: 1,
-        friction: 6,
-        tension: 40,
-        useNativeDriver: Platform.OS !== 'web',
-      }).start();
-
-      const particleAnimations = particleAnims.map((p, idx) => {
-        const angle = (idx / PARTICLE_COUNT) * 2 * Math.PI + (Math.random() - 0.5) * 0.4;
-        const distance = Math.random() * 160 + 90;
-        const targetX = Math.cos(angle) * distance;
-        const targetY = Math.sin(angle) * distance;
-
-        return Animated.parallel([
-          Animated.timing(p.x, {
-            toValue: targetX,
-            duration: 1800,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: Platform.OS !== 'web',
-          }),
-          Animated.timing(p.y, {
-            toValue: targetY,
-            duration: 1800,
-            easing: Easing.out(Easing.quad),
-            useNativeDriver: Platform.OS !== 'web',
-          }),
-          Animated.sequence([
-            Animated.delay(1200),
-            Animated.timing(p.opacity, {
-              toValue: 0,
-              duration: 600,
-              useNativeDriver: Platform.OS !== 'web',
-            }),
-          ]),
-        ]);
-      });
-
-      Animated.parallel(particleAnimations).start();
-
-      const timer = setTimeout(() => {
-        onClose();
-      }, 2800);
-
-      return () => clearTimeout(timer);
-    }
-  }, [visible]);
-
-  if (!visible) return null;
-
-  const cardScale = animValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.3, 1],
-  });
-  const cardOpacity = animValue.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0, 1, 1],
-  });
-
-  return (
-    <Modal visible={visible} transparent={true} animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.celebrationOverlay} onPress={onClose}>
-        <View style={styles.particleContainer} pointerEvents="none">
-          {particleAnims.map((p, index) => {
-            const emoji = PARTICLE_EMOJIS[index % PARTICLE_EMOJIS.length];
-            return (
-              <Animated.View
-                key={index}
-                style={[
-                  styles.particle,
-                  {
-                    transform: [
-                      { translateX: p.x },
-                      { translateY: p.y },
-                      { scale: p.scale },
-                    ],
-                    opacity: p.opacity,
-                  },
-                ]}
-              >
-                <Text style={{ fontSize: 22 }}>{emoji}</Text>
-              </Animated.View>
-            );
-          })}
-        </View>
-
-        <Animated.View
-          style={[
-            styles.celebrationCard,
-            {
-              transform: [{ scale: cardScale }],
-              opacity: cardOpacity,
-              borderColor:
-                type === 'double_off'
-                  ? '#FFB4D6'
-                  : type === 'anniv'
-                  ? '#FFD700'
-                  : '#FF69B4',
-            },
-          ]}
-        >
-          <Text style={{ fontSize: 48, marginBottom: 8 }}>{icon}</Text>
-          <Text style={styles.celebrationTitle}>{title}</Text>
-          <Text style={styles.celebrationSubtitle}>{subtitle}</Text>
-          <Text style={styles.celebrationHint}>화면을 터치하면 닫힙니다 ✨</Text>
-        </Animated.View>
-      </Pressable>
-    </Modal>
-  );
+const formatKoreanDate = (dateStr: string) => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length < 3) return dateStr;
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  return `${Number(parts[1])}월 ${Number(parts[2])}일 (${dayNames[d.getUTCDay()]})`;
 };
 
 export default function App() {
+  const todayStr = getTodayString();
+
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [markedDates, setMarkedDates] = useState<any>({});
+
+  // 하단 메인 네비게이션 탭 ('calendar' | 'dday' | 'activity' | 'settings')
+  const [mainTab, setMainTab] = useState<'calendar' | 'dday' | 'activity' | 'settings'>('calendar');
+
+  // 끼리(kkiri) 스타일 캘린더 필터 ('ALL' | 'TOGETHER' | 'HAE' | 'DAWON')
+  const [calendarFilter, setCalendarFilter] = useState<'ALL' | 'TOGETHER' | 'HAE' | 'DAWON'>('ALL');
 
   const [haeOverrides, setHaeOverrides] = useState<any>({});
   const [dawonOverrides, setDawonOverrides] = useState<any>({});
@@ -297,24 +163,23 @@ export default function App() {
   const [haeMemos, setHaeMemos] = useState<any>({});
   const [dawonMemos, setDawonMemos] = useState<any>({});
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedDate, setSelectedDate] = useState('');
+  // 달력에서 현재 선택된 날짜 (기본값: 오늘) 및 편집 모달 상태
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [editModalVisible, setEditModalVisible] = useState(false);
 
   const [memoInput, setMemoInput] = useState('');
   const [haeMemoInput, setHaeMemoInput] = useState('');
   const [dawonMemoInput, setDawonMemoInput] = useState('');
-  const [activeTab, setActiveTab] = useState('공용');
+  const [activeMemoTab, setActiveMemoTab] = useState<'공용' | '해' | '다원'>('공용');
 
   const [isDark, setIsDark] = useState(false);
   const [dDayText, setDDayText] = useState('');
-  const [showSnackbar, setShowSnackbar] = useState(false);
-
   const [memoHistory, setMemoHistory] = useState<any[]>([]);
-  const [historyModalVisible, setHistoryModalVisible] = useState(false);
 
   const [holidays, setHolidays] = useState<Record<string, string>>(DEFAULT_HOLIDAYS);
   const [weatherMap, setWeatherMap] = useState<Record<string, any>>({});
 
+  // 아이폰 위젯 모달 및 급여 보안 모달 상태
   const [widgetModalVisible, setWidgetModalVisible] = useState(false);
   const [copiedWidgetUrl, setCopiedWidgetUrl] = useState(false);
 
@@ -322,38 +187,28 @@ export default function App() {
   const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
-  const [currentViewYearMonth, setCurrentViewYearMonth] = useState(() => getTodayString().slice(0, 7));
+  const [currentViewYearMonth, setCurrentViewYearMonth] = useState(() => todayStr.slice(0, 7));
   const [extraBonusInput, setExtraBonusInput] = useState('0');
 
-  const [isAnimationEnabled, setIsAnimationEnabled] = useState(true);
-  const [celebration, setCelebration] = useState<{
-    visible: boolean;
-    type: 'anniv' | 'double_off' | 'date';
-    title: string;
-    subtitle: string;
-    icon: string;
-  }>({
-    visible: false,
-    type: 'anniv',
-    title: '',
-    subtitle: '',
-    icon: '🎉',
-  });
-
   const [calendarKey, setCalendarKey] = useState(0);
-  const todayStr = getTodayString();
 
-  const themeColors = {
-    bgOverlay: isDark ? '#000000' : '#F2F2F7',
-    cardBg: isDark ? '#1C1C1E' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#000000',
-    subText: isDark ? '#A0A0A5' : '#8E8E93',
-    modalBg: isDark ? '#1C1C1E' : '#FFFFFF',
-    todayBg: isDark ? '#FF453A' : '#FF3B30',
-    divider: isDark ? '#38383A' : '#E5E5EA',
-    primary: isDark ? '#0A84FF' : '#007AFF',
-    dateBg: isDark ? 'rgba(255, 105, 180, 0.2)' : 'rgba(255, 240, 245, 0.9)',
+  // 모던 엔터프라이즈 컬러 시스템 (Toss / TimeTree 감성)
+  const theme = {
+    bg: isDark ? '#0F1015' : '#F4F6F9',
+    card: isDark ? '#181A20' : '#FFFFFF',
+    cardSub: isDark ? '#22252E' : '#F8FAFC',
+    text: isDark ? '#F8FAFC' : '#111827',
+    subText: isDark ? '#94A3B8' : '#64748B',
+    border: isDark ? '#262932' : '#E2E8F0',
+    primary: isDark ? '#3B82F6' : '#2563EB',
+    primarySoft: isDark ? 'rgba(59, 130, 246, 0.16)' : '#EFF6FF',
+    accent: '#F43F5E',
+    accentSoft: isDark ? 'rgba(244, 63, 94, 0.16)' : '#FFF1F2',
+    todayCircle: isDark ? '#F43F5E' : '#111827',
   };
+
+  // 사귄 일수 계산
+  const coupleDaysCount = Math.floor((new Date(todayStr + 'T00:00:00Z').getTime() - COUPLE_START_DATE.getTime()) / 86400000) + 1;
 
   const fetchWeatherData = useCallback(async () => {
     try {
@@ -405,19 +260,19 @@ export default function App() {
     const { h06, h14, h22 } = w.hours;
 
     if (shift.id === 'DAY') {
-      const rainWarn = Math.max(h06.pop, h14.pop) >= 50 ? ' ☔우산 필수!' : '';
-      return `☀️ ${personName}(데이): 출근(06시) ${h06.temp}°C → 퇴근(14시) ${h14.temp}°C (강수 ${Math.max(h06.pop, h14.pop)}%)${rainWarn}`;
+      const rainWarn = Math.max(h06.pop, h14.pop) >= 50 ? ' · ☔우산 필수' : '';
+      return `${personName}(데이) 출근 06시 ${h06.temp}°C → 퇴근 14시 ${h14.temp}°C (강수 ${Math.max(h06.pop, h14.pop)}%)${rainWarn}`;
     }
     if (shift.id === 'SW' || shift.id === 'EVE') {
-      const rainWarn = Math.max(h14.pop, h22.pop) >= 50 ? ' ☔우산 필수!' : '';
-      return `🌇 ${personName}(${shift.label}): 출근(14시) ${h14.temp}°C → 퇴근(22시) ${h22.temp}°C (강수 ${Math.max(h14.pop, h22.pop)}%)${rainWarn}`;
+      const rainWarn = Math.max(h14.pop, h22.pop) >= 50 ? ' · ☔우산 필수' : '';
+      return `${personName}(${shift.label}) 출근 14시 ${h14.temp}°C → 퇴근 22시 ${h22.temp}°C (강수 ${Math.max(h14.pop, h22.pop)}%)${rainWarn}`;
     }
     if (shift.id === 'GY') {
-      const rainWarn = Math.max(h22.pop, h06.pop) >= 50 ? ' ☔우산 필수!' : '';
-      return `🌙 ${personName}(야간): 출근(22시) ${h22.temp}°C → 오전퇴근 ${h06.temp}°C (강수 ${Math.max(h22.pop, h06.pop)}%)${rainWarn}`;
+      const rainWarn = Math.max(h22.pop, h06.pop) >= 50 ? ' · ☔우산 필수' : '';
+      return `${personName}(야간) 출근 22시 ${h22.temp}°C → 퇴근 06시 ${h06.temp}°C (강수 ${Math.max(h22.pop, h06.pop)}%)${rainWarn}`;
     }
     if (shift.id === 'OFF') {
-      return `🌴 ${personName}(휴무): 낮 최고 ${w.maxTemp}°C / 최저 ${w.minTemp}°C (${w.label})`;
+      return `${personName}(휴무) 낮 최고 ${w.maxTemp}°C / 최저 ${w.minTemp}°C (${w.label})`;
     }
     return null;
   };
@@ -427,8 +282,7 @@ export default function App() {
       const cacheKey = `@cached_holidays_${year}`;
       const cached = await AsyncStorage.getItem(cacheKey);
       if (cached) {
-        const parsed = JSON.parse(cached);
-        setHolidays((prev) => ({ ...prev, ...parsed }));
+        setHolidays((prev) => ({ ...prev, ...JSON.parse(cached) }));
       }
 
       const apiUrl = Platform.OS === 'web' ? `/api/holidays?year=${year}` : undefined;
@@ -445,35 +299,14 @@ export default function App() {
           }
         }
       }
-    } catch {
-      // 오프라인 시 기본 공휴일 유지
-    }
+    } catch {}
   }, []);
 
   const loadHistory = async () => {
     try {
       const hist = await AsyncStorage.getItem('@memo_history');
       if (hist) setMemoHistory(JSON.parse(hist));
-    } catch (e) {
-      console.error('History load error', e);
-    }
-  };
-
-  const loadSettings = async () => {
-    try {
-      const animPref = await AsyncStorage.getItem('@anim_enabled');
-      if (animPref !== null) {
-        setIsAnimationEnabled(animPref === 'true');
-      }
-    } catch (e) {
-      console.error('Settings load error', e);
-    }
-  };
-
-  const toggleAnimationSetting = async () => {
-    const nextVal = !isAnimationEnabled;
-    setIsAnimationEnabled(nextVal);
-    await AsyncStorage.setItem('@anim_enabled', String(nextVal));
+    } catch (e) {}
   };
 
   const logMemoChange = async (targetDate: string, tab: string, oldText: string, newText: string) => {
@@ -507,7 +340,6 @@ export default function App() {
 
     const { data, error } = await supabase.from('couple_calendar').select('*');
     if (error) {
-      console.error('데이터 불러오기 에러:', error);
       if (!isInit) setIsRefreshing(false);
       return;
     }
@@ -533,22 +365,15 @@ export default function App() {
       setDawonMemos(dMemoMap);
     }
 
-    if (isInit) {
-      setIsLoading(false);
-      setShowSnackbar(true);
-    } else {
-      setIsRefreshing(false);
-    }
+    if (isInit) setIsLoading(false);
+    else setIsRefreshing(false);
   };
 
   useEffect(() => {
     fetchCalendarData(true);
     loadHistory();
-    loadSettings();
     fetchWeatherData();
-
-    const currentYear = todayStr.slice(0, 4);
-    syncHolidaysFromAPI(currentYear);
+    syncHolidaysFromAPI(todayStr.slice(0, 4));
 
     const subscription = supabase
       .channel('public:couple_calendar')
@@ -575,19 +400,12 @@ export default function App() {
   }, [currentViewYearMonth, syncHolidaysFromAPI]);
 
   useEffect(() => {
-    if (showSnackbar) {
-      const timer = setTimeout(() => setShowSnackbar(false), 3500);
-      return () => clearTimeout(timer);
-    }
-  }, [showSnackbar]);
-
-  useEffect(() => {
     if (isLoading) return;
     const marks: any = {};
     const base = new Date('2026-01-01T00:00:00Z');
 
     for (let i = 0; i < 1826; i++) {
-      const target = new Date(base.getTime() + i * 24 * 60 * 60 * 1000);
+      const target = new Date(base.getTime() + i * 86400000);
       const dateStr = target.toISOString().split('T')[0];
 
       const haeShift = haeOverrides[dateStr] || getCalculatedShift(dateStr);
@@ -600,14 +418,14 @@ export default function App() {
       const day = target.getUTCDate();
       let annivText = '';
 
-      if (month === 7 && day === 13) annivText = '해 생일';
-      else if (month === 11 && day === 13) annivText = '다원 생일';
+      if (month === 7 && day === 13) annivText = '🎂 해 생일';
+      else if (month === 11 && day === 13) annivText = '🎂 다원 생일';
       else if (month === 6 && day === 26) {
         const years = target.getUTCFullYear() - COUPLE_START_DATE.getUTCFullYear();
         if (years > 0) annivText = `🎉 ${years}주년`;
       } else {
         const diffAnnivTime = target.getTime() - COUPLE_START_DATE.getTime();
-        const diffAnnivDays = Math.floor(diffAnnivTime / (1000 * 60 * 60 * 24)) + 1;
+        const diffAnnivDays = Math.floor(diffAnnivTime / 86400000) + 1;
         if (diffAnnivDays > 0 && diffAnnivDays % 100 === 0) annivText = `❤️ ${diffAnnivDays}일`;
       }
       marks[dateStr] = { haeShift, dawonShift, memo, hMemo, dMemo, annivText };
@@ -618,15 +436,15 @@ export default function App() {
     let minDiff = Infinity;
     Object.keys(memos).forEach((date) => {
       if (memos[date].includes('♥') && date >= todayStr) {
-        const diffDays = Math.floor((new Date(date).getTime() - new Date(todayStr).getTime()) / (1000 * 60 * 60 * 24));
+        const diffDays = Math.floor((new Date(date).getTime() - new Date(todayStr).getTime()) / 86400000);
         if (diffDays < minDiff) {
           minDiff = diffDays;
           closestDday = diffDays;
         }
       }
     });
-    if (closestDday === 0) setDDayText('오늘 데이트 날이에요! ♥');
-    else if (closestDday !== null) setDDayText(`다음 데이트까지 D-${closestDday} ♥`);
+    if (closestDday === 0) setDDayText('오늘 데이트 ♥');
+    else if (closestDday !== null) setDDayText(`데이트 D-${closestDday}`);
     else setDDayText('');
   }, [haeOverrides, dawonOverrides, memos, haeMemos, dawonMemos, isLoading, todayStr, holidays]);
 
@@ -641,70 +459,42 @@ export default function App() {
         dawon_memo: dMem || '',
       };
       await supabase.from('couple_calendar').upsert(payload, { onConflict: 'date' });
-    } catch (err) {
-      console.error('네트워크 에러:', err);
-    }
+    } catch (err) {}
   };
 
   const handleManualRefresh = async () => {
     await fetchCalendarData(false);
     await fetchWeatherData();
-    const viewYear = currentViewYearMonth.slice(0, 4);
-    await syncHolidaysFromAPI(viewYear);
+    await syncHolidaysFromAPI(currentViewYearMonth.slice(0, 4));
   };
 
-  const onDayPress = (dateString: string) => {
+  // 날짜 터치 시 하단 브리핑 카드만 즉시 갱신 (팝업 피로도 제거)
+  const onSelectDay = (dateString: string) => {
     setSelectedDate(dateString);
     setMemoInput(memos[dateString] || '');
     setHaeMemoInput(haeMemos[dateString] || '');
     setDawonMemoInput(dawonMemos[dateString] || '');
-    setActiveTab('공용');
+  };
 
-    if (isAnimationEnabled) {
-      const marking = markedDates[dateString] || {};
-      const haeShift = marking.haeShift;
-      const dawonShift = marking.dawonShift;
-      const hasDateMemo = (marking.memo && marking.memo.includes('♥')) || (memos[dateString] && memos[dateString].includes('♥'));
-      const isDoubleOff = haeShift?.id === 'OFF' && dawonShift?.id === 'OFF';
-
-      if (marking.annivText) {
-        setCelebration({
-          visible: true,
-          type: 'anniv',
-          title: marking.annivText,
-          subtitle: '사랑과 축복이 가득한 소중한 날이에요! 💖',
-          icon: marking.annivText.includes('생일') ? '🎂' : '🎉',
-        });
-      } else if (isDoubleOff) {
-        setCelebration({
-          visible: true,
-          type: 'double_off',
-          title: '💕 겹휴무 달성!',
-          subtitle: '둘 다 쉬는 날이에요! 푹 쉬고 힐링 데이트해요 ✨',
-          icon: '🌴',
-        });
-      } else if (hasDateMemo) {
-        setCelebration({
-          visible: true,
-          type: 'date',
-          title: '❤️ 데이트 날!',
-          subtitle: '퇴근하고 만나요! 설레는 하루 🥰',
-          icon: '💖',
-        });
-      }
-    }
-
-    setModalVisible(true);
+  // 편집 바텀시트 열기
+  const openEditSheet = (targetDate?: string) => {
+    const d = targetDate || selectedDate;
+    setSelectedDate(d);
+    setMemoInput(memos[d] || '');
+    setHaeMemoInput(haeMemos[d] || '');
+    setDawonMemoInput(dawonMemos[d] || '');
+    setActiveMemoTab('공용');
+    setEditModalVisible(true);
   };
 
   const addDateMemo = () => {
     const newText = memoInput.includes('♥') ? memoInput.replace('♥', '').trim() : memoInput ? `${memoInput} ♥` : '♥';
     setMemoInput(newText);
-    setActiveTab('공용');
+    setActiveMemoTab('공용');
   };
 
   const closeModalAndSave = () => {
-    setModalVisible(false);
+    setEditModalVisible(false);
 
     logMemoChange(selectedDate, '공용', memos[selectedDate], memoInput);
     logMemoChange(selectedDate, '해', haeMemos[selectedDate], haeMemoInput);
@@ -752,7 +542,6 @@ export default function App() {
     else current.setUTCDate(current.getUTCDate() + 1);
 
     const newDateStr = current.toISOString().split('T')[0];
-
     setSelectedDate(newDateStr);
     setMemoInput(newMemos[newDateStr] || '');
     setHaeMemoInput(newHaeMemos[newDateStr] || '');
@@ -843,16 +632,25 @@ export default function App() {
     }
   };
 
-  const calculateMonthlySalary = () => {
+  // 월간 통계 및 급여 계산
+  const calculateMonthlyStats = () => {
     let normalNightCount = 0;
     let holidayNightCount = 0;
     let holidayDaySwingCount = 0;
     let totalOtHours = 0;
+    let doubleOffCount = 0;
+    let dateCount = 0;
 
     Object.keys(markedDates).forEach((dateStr) => {
       if (dateStr.startsWith(currentViewYearMonth)) {
-        const shift = markedDates[dateStr]?.haeShift;
+        const mark = markedDates[dateStr];
+        const shift = mark?.haeShift;
+        const dShift = mark?.dawonShift;
         const isHol = !!holidays[dateStr];
+
+        if (shift?.id === 'OFF' && dShift?.id === 'OFF') doubleOffCount += 1;
+        if (mark?.memo && mark.memo.includes('♥')) dateCount += 1;
+
         if (shift) {
           if (shift.ot) totalOtHours += Number(shift.ot);
           if (shift.id === 'GY') {
@@ -882,6 +680,8 @@ export default function App() {
       holidayNightCount,
       holidayDaySwingCount,
       totalOtHours,
+      doubleOffCount,
+      dateCount,
       otAllowance,
       normalNightAllowance,
       holidayNightAllowance,
@@ -894,277 +694,892 @@ export default function App() {
     };
   };
 
-  const salaryStats = calculateMonthlySalary();
+  const monthlyStats = calculateMonthlyStats();
 
   const currentHaeShift = haeOverrides[selectedDate] || (selectedDate ? getCalculatedShift(selectedDate) : null);
   const currentDawonShift = dawonOverrides[selectedDate];
   const selectedWeather = weatherMap[selectedDate];
-
-  const todayHaeShift = haeOverrides[todayStr] || getCalculatedShift(todayStr);
-  const todayDawonShift = dawonOverrides[todayStr];
-  const todayMemo = memos[todayStr] || '';
-  const todayWeather = weatherMap[todayStr];
-
-  let currentSnackMsg = '오늘도 좋은 하루 보내요! ✨';
-  if (todayMemo.includes('♥')) currentSnackMsg = '오늘 데이트 날이에요! 퇴근하고 만나요🥰';
-  else if (todayHaeShift && todayDawonShift) {
-    if (todayHaeShift.id === 'OFF' && todayDawonShift.id === 'OFF') currentSnackMsg = '둘 다 쉬는 날! 좋은 하루 보내요 💕';
-    else if (todayHaeShift.id === todayDawonShift.id) currentSnackMsg = `오늘 둘 다 ${todayHaeShift.label} 근무네요! 화이팅 💪`;
-    else currentSnackMsg = `오늘 해는 ${todayHaeShift.text}, 다원이는 ${todayDawonShift.text}! 화이팅🥰`;
-  }
-  if (todayWeather) {
-    currentSnackMsg += ` (${todayWeather.icon} ${todayWeather.maxTemp}°/${todayWeather.minTemp}°)`;
-  }
+  const selectedMarking = markedDates[selectedDate] || {};
 
   const goToToday = () => {
+    setSelectedDate(todayStr);
     setCurrentViewYearMonth(todayStr.slice(0, 7));
     setCalendarKey((prev) => prev + 1);
   };
 
+  // 다가오는 기념일/데이트 리스트 추출 (끼리 D-Day 탭용)
+  const getUpcomingMilestones = () => {
+    const list: { date: string; title: string; diff: number; tag: string }[] = [];
+    Object.keys(markedDates).forEach((dateStr) => {
+      if (dateStr >= todayStr) {
+        const m = markedDates[dateStr];
+        const diff = Math.floor((new Date(dateStr + 'T00:00:00Z').getTime() - new Date(todayStr + 'T00:00:00Z').getTime()) / 86400000);
+        if (diff <= 180) {
+          if (m.memo && m.memo.includes('♥')) {
+            list.push({ date: dateStr, title: m.memo.replace('♥', '').trim() || '설레는 데이트', diff, tag: 'DATE' });
+          }
+          if (m.annivText) {
+            list.push({ date: dateStr, title: m.annivText, diff, tag: 'ANNIV' });
+          }
+        }
+      }
+    });
+    return list.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 12);
+  };
+
   if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F2F7' }}>
-        <Text style={{ fontSize: 16, fontWeight: 'bold' }}>캘린더 불러오는 중... 🗓️</Text>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.bg }}>
+        <ActivityIndicator size="small" color={theme.primary} />
+        <Text style={{ fontSize: 14, fontWeight: '600', color: theme.subText, marginTop: 10 }}>캘린더 동기화 중...</Text>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.bgOverlay }]}>
-      <View style={[styles.webCenteringContainer, { paddingTop: Platform.OS === 'web' ? 75 : 50 }]}>
-        {showSnackbar && (
-          <TouchableOpacity style={styles.snackbar} onPress={() => setShowSnackbar(false)} activeOpacity={0.8}>
-            <Text style={styles.snackbarText}>{currentSnackMsg}</Text>
-          </TouchableOpacity>
-        )}
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <View style={styles.webContainer}>
+        {/* ==========================================
+            상단 모던 헤더 (군더더기 이모지 제거)
+        ========================================== */}
+        <View style={[styles.topHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={[styles.brandTitle, { color: theme.text }]}>해 & 다원</Text>
+              <View style={[styles.couplePill, { backgroundColor: theme.accentSoft }]}>
+                <Text style={[styles.couplePillText, { color: theme.accent }]}>♥ {coupleDaysCount}일째</Text>
+              </View>
+              {dDayText ? (
+                <View style={[styles.couplePill, { backgroundColor: theme.primarySoft }]}>
+                  <Text style={[styles.couplePillText, { color: theme.primary }]}>{dDayText}</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
 
-        <View style={styles.header}>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity onPress={openVaultModal} style={styles.headerIconBtn}>
-              <Text style={{ fontSize: 17 }}>🔒</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              onPress={goToToday}
+              style={[styles.topActionBtn, { backgroundColor: theme.cardSub, borderColor: theme.border }]}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: theme.text }}>오늘</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={toggleAnimationSetting} style={styles.headerIconBtn}>
-              <Text style={{ fontSize: 16, opacity: isAnimationEnabled ? 1 : 0.35 }}>
-                {isAnimationEnabled ? '✨' : '💨'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setWidgetModalVisible(true)} style={styles.headerIconBtn}>
-              <Text style={{ fontSize: 16 }}>📲</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={{ flex: 1.6, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={[styles.headerTitle, { color: themeColors.text }]}>우리만의 캘린더</Text>
-            {dDayText ? <Text style={styles.ddayText}>{dDayText}</Text> : null}
-          </View>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
-            <TouchableOpacity onPress={goToToday} style={styles.headerIconBtn}>
-              <Text style={{ fontSize: 13, fontWeight: '900', color: themeColors.primary }}>오늘</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setHistoryModalVisible(true)} style={styles.headerIconBtn}>
-              <Text style={{ fontSize: 17 }}>🕒</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsDark(!isDark)} style={styles.headerIconBtn}>
-              <Text style={{ fontSize: 17 }}>{isDark ? '☀️' : '🌙'}</Text>
+            <TouchableOpacity
+              onPress={handleManualRefresh}
+              disabled={isRefreshing}
+              style={[styles.topActionBtn, { backgroundColor: theme.cardSub, borderColor: theme.border }]}
+            >
+              {isRefreshing ? (
+                <ActivityIndicator size="small" color={theme.primary} />
+              ) : (
+                <Text style={{ fontSize: 13, fontWeight: '700', color: theme.subText }}>↻</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={[styles.calendarWrapper, { backgroundColor: themeColors.cardBg }]}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.legendContainer}>
-              {Object.values(DAWON_SHIFTS).map((shift) => (
-                <View key={shift.id} style={styles.legendItem}>
-                  <View style={[styles.legendCircle, { backgroundColor: shift.color }]}>
-                    <Text style={[styles.legendCircleText, { color: shift.textColor }]}>{shift.text}</Text>
-                  </View>
-                  <Text style={[styles.legendText, { color: themeColors.text }]}>{shift.label}</Text>
-                </View>
-              ))}
-            </ScrollView>
-
-            <Calendar
-              key={`cal-${isDark ? 'dark' : 'light'}-${calendarKey}`}
-              current={todayStr}
-              initialDate={todayStr}
-              enableSwipeMonths={true}
-              onMonthChange={(month: any) => {
-                if (month && month.dateString) {
-                  setCurrentViewYearMonth(month.dateString.slice(0, 7));
-                }
-              }}
-              style={styles.calendar}
-              theme={{
-                calendarBackground: 'transparent',
-                textSectionTitleColor: themeColors.subText,
-                monthTextColor: themeColors.text,
-                textMonthFontWeight: 'bold',
-                textMonthFontSize: 18,
-                'stylesheet.calendar.main': {
-                  container: { paddingLeft: 0, paddingRight: 0 },
-                  week: { marginTop: 0, marginBottom: 0, flexDirection: 'row', justifyContent: 'space-between' },
-                },
-              }}
-              dayComponent={({ date, state }: any) => {
-                const dateStr = date.dateString;
-                const marking = markedDates[dateStr] || {};
-                const isToday = dateStr === todayStr;
-                const isDisabled = state === 'disabled';
-                const isDateDay = marking.memo && marking.memo.includes('♥');
-                const isHoliday = holidays[dateStr];
-                const dayWeather = weatherMap[dateStr];
-
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.dayCell,
-                      { borderWidth: 0.5, borderColor: themeColors.divider },
-                      isDateDay && !isDisabled && { backgroundColor: themeColors.dateBg },
-                    ]}
-                    onPress={() => onDayPress(dateStr)}
-                    activeOpacity={0.6}
-                  >
-                    {dayWeather && !isDisabled ? (
-                      <View style={styles.weatherMiniBadge}>
-                        <Text style={{ fontSize: 8 }}>{dayWeather.icon}</Text>
-                      </View>
-                    ) : null}
-
-                    <View style={styles.dotsContainer}>
-                      {marking.memo ? <View style={[styles.dot, { backgroundColor: '#FFCC00' }]} /> : null}
-                      {marking.hMemo ? <View style={[styles.dot, { backgroundColor: '#0A84FF' }]} /> : null}
-                      {marking.dMemo ? <View style={[styles.dot, { backgroundColor: '#FF69B4' }]} /> : null}
-                      {isHoliday ? <View style={[styles.dot, { backgroundColor: '#FF3B30' }]} /> : null}
-                    </View>
-
-                    <View style={styles.annivContainer}>
-                      {marking.annivText ? (
-                        <Text style={styles.annivText} numberOfLines={1}>{marking.annivText}</Text>
-                      ) : isHoliday ? (
-                        <Text style={[styles.annivText, { color: '#FF3B30' }]} numberOfLines={1}>{isHoliday}</Text>
-                      ) : null}
-                    </View>
-
-                    <View style={[styles.dateNumberWrapper, isToday && { backgroundColor: themeColors.todayBg }]}>
-                      <Text style={[styles.dayNumber, { color: isDisabled ? themeColors.subText : isToday ? '#FFFFFF' : isHoliday ? '#FF3B30' : themeColors.text }]}>
-                        {date.day}
+        {/* ==========================================
+            탭 1: 메인 캘린더 뷰 (끼리 필터 + 마스터/디테일)
+        ========================================== */}
+        {mainTab === 'calendar' && (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {/* 끼리(kkiri) 스타일 필터 칩 & 미니 요약 */}
+            <View style={styles.filterBarWrapper}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+                {[
+                  { id: 'ALL', label: '전체 보기' },
+                  { id: 'TOGETHER', label: `💕 겹휴무·데이트 (${monthlyStats.doubleOffCount})` },
+                  { id: 'HAE', label: '☀️ 해 근무' },
+                  { id: 'DAWON', label: '🌙 다원 근무' },
+                ].map((f) => {
+                  const active = calendarFilter === f.id;
+                  return (
+                    <TouchableOpacity
+                      key={f.id}
+                      onPress={() => setCalendarFilter(f.id as any)}
+                      style={[
+                        styles.filterChip,
+                        {
+                          backgroundColor: active ? theme.text : theme.card,
+                          borderColor: active ? theme.text : theme.border,
+                        },
+                      ]}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: active ? theme.card : theme.subText }}>
+                        {f.label}
                       </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {/* 메인 캘린더 카드 */}
+            <View style={[styles.calendarCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              {/* 상단 미니멀 범례 */}
+              <View style={[styles.legendBar, { borderBottomColor: theme.border }]}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>좌: 해 / 우: 다원</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {Object.values(DAWON_SHIFTS).map((s) => (
+                    <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <View style={[styles.legendDot, { backgroundColor: s.color }]} />
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: theme.subText }}>{s.label}</Text>
                     </View>
-
-                    <View style={styles.shiftRow}>
-                      {marking.haeShift ? (
-                        <View style={styles.shiftBox}>
-                          <Text style={[styles.personLabel, { color: themeColors.text, opacity: isDisabled ? 0.3 : 1 }]}>해</Text>
-                          <View style={[styles.circleBadge, { backgroundColor: marking.haeShift.color, opacity: isDisabled ? 0.3 : 1, width: marking.haeShift.ot ? 28 : 16 }]}>
-                            <Text style={[styles.circleText, { color: marking.haeShift.textColor, fontSize: marking.haeShift.ot ? 7 : 9 }]}>
-                              {marking.haeShift.text}{marking.haeShift.ot ? ` OT${marking.haeShift.ot}` : ''}
-                            </Text>
-                          </View>
-                        </View>
-                      ) : (
-                        <View style={styles.shiftBox} />
-                      )}
-
-                      {marking.haeShift && marking.dawonShift && (
-                        <View style={[styles.verticalDivider, { backgroundColor: themeColors.divider, opacity: isDisabled ? 0.3 : 1 }]} />
-                      )}
-
-                      {marking.dawonShift ? (
-                        <View style={styles.shiftBox}>
-                          <Text style={[styles.personLabel, { color: themeColors.text, opacity: isDisabled ? 0.3 : 1 }]}>다원</Text>
-                          <View style={[styles.circleBadge, { backgroundColor: marking.dawonShift.color, opacity: isDisabled ? 0.3 : 1, width: marking.dawonShift.ot ? 28 : 16 }]}>
-                            <Text style={[styles.circleText, { color: marking.dawonShift.textColor, fontSize: marking.dawonShift.ot ? 7 : 9 }]}>
-                              {marking.dawonShift.text}{marking.dawonShift.ot ? ` OT${marking.dawonShift.ot}` : ''}
-                            </Text>
-                          </View>
-                        </View>
-                      ) : (
-                        <View style={styles.shiftBox} />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </View>
-
-          <TouchableOpacity style={styles.refreshButton} onPress={handleManualRefresh} activeOpacity={0.8} disabled={isRefreshing}>
-            {isRefreshing ? (
-              <ActivityIndicator size="small" color="#FF3B30" />
-            ) : (
-              <Text style={styles.refreshButtonText}>🔄 최신 데이터 & 날씨/공휴일 새로고침</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-
-      <FullScreenCelebration
-        visible={celebration.visible}
-        type={celebration.type}
-        title={celebration.title}
-        subtitle={celebration.subtitle}
-        icon={celebration.icon}
-        onClose={() => setCelebration((prev) => ({ ...prev, visible: false }))}
-      />
-
-      {/* 📱 아이폰 잠금화면 위젯(.ics) 실시간 구독 모달 */}
-      <Modal visible={widgetModalVisible} transparent={true} animationType="fade" onRequestClose={() => setWidgetModalVisible(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setWidgetModalVisible(false)}>
-          <Pressable style={[styles.modalContent, { backgroundColor: themeColors.modalBg }]} onPress={(e) => e.stopPropagation()}>
-            <View style={{ alignItems: 'center', width: '100%' }}>
-              <Text style={{ fontSize: 34, marginBottom: 8 }}>📲</Text>
-              <Text style={[styles.modalDate, { color: themeColors.text, marginBottom: 6 }]}>아이폰 잠금화면 위젯 연동</Text>
-              <Text style={{ fontSize: 12, color: themeColors.subText, textAlign: 'center', lineHeight: 18, marginBottom: 16 }}>
-                아래 버튼을 누르면 아이폰 기본 '캘린더' 앱에{'\n'}해·다원의 근무표와 데이트 일정이 실시간 구독됩니다.{'\n'}구독 후 잠금화면에 기본 캘린더 위젯을 추가하세요!
-              </Text>
-
-              <TouchableOpacity
-                style={[styles.widgetPrimaryBtn, { backgroundColor: themeColors.primary }]}
-                onPress={() => Linking.openURL(getWidgetSubscriptionUrls().webcalUrl)}
-              >
-                <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>
-                  🍏 아이폰 캘린더에 바로 구독하기
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.widgetSecondaryBtn, { borderColor: themeColors.divider }]}
-                onPress={handleCopyWidgetUrl}
-              >
-                <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>
-                  {copiedWidgetUrl ? '✅ 구독 주소 복사 완료!' : '📋 구독 URL 주소 복사하기 (수동 등록용)'}
-                </Text>
-              </TouchableOpacity>
-
-              <View style={[styles.weatherBriefBox, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7', marginTop: 14 }]}>
-                <Text style={{ fontSize: 11, color: themeColors.subText, lineHeight: 16 }}>
-                  💡 수동 등록 방법:{'\n'}
-                  아이폰 [설정] → [앱] → [캘린더] → [캘린더 계정] → [계정 추가] → [기타] → [구독 캘린더 추가]에 복사한 주소를 붙여넣으세요.
-                </Text>
+                  ))}
+                </View>
               </View>
 
-              <TouchableOpacity onPress={() => setWidgetModalVisible(false)} style={{ marginTop: 15, padding: 8 }}>
-                <Text style={{ color: themeColors.subText, fontWeight: 'bold' }}>닫기</Text>
+              <Calendar
+                key={`cal-${isDark ? 'dark' : 'light'}-${calendarKey}`}
+                current={selectedDate || todayStr}
+                initialDate={selectedDate || todayStr}
+                enableSwipeMonths={true}
+                onMonthChange={(month: any) => {
+                  if (month?.dateString) setCurrentViewYearMonth(month.dateString.slice(0, 7));
+                }}
+                style={styles.calendar}
+                theme={{
+                  calendarBackground: 'transparent',
+                  textSectionTitleColor: theme.subText,
+                  monthTextColor: theme.text,
+                  textMonthFontWeight: '800',
+                  textMonthFontSize: 17,
+                  arrowColor: theme.text,
+                  'stylesheet.calendar.main': {
+                    container: { paddingLeft: 4, paddingRight: 4 },
+                    week: { marginTop: 2, marginBottom: 2, flexDirection: 'row', justifyContent: 'space-around' },
+                  },
+                }}
+                dayComponent={({ date, state }: any) => {
+                  const dateStr = date.dateString;
+                  const marking = markedDates[dateStr] || {};
+                  const isToday = dateStr === todayStr;
+                  const isSelected = dateStr === selectedDate;
+                  const isDisabled = state === 'disabled';
+                  const isDateDay = marking.memo && marking.memo.includes('♥');
+                  const isDoubleOff = marking.haeShift?.id === 'OFF' && marking.dawonShift?.id === 'OFF';
+                  const isHoliday = holidays[dateStr];
+                  const dayWeather = weatherMap[dateStr];
+
+                  // 필터 적용 시 흐리게 처리할지 판별
+                  const isDimmedByFilter =
+                    calendarFilter === 'TOGETHER' && !isDoubleOff && !isDateDay && !marking.annivText;
+
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        styles.dayCell,
+                        isSelected && { backgroundColor: theme.primarySoft, borderRadius: 10 },
+                        isDateDay && !isSelected && !isDisabled && { backgroundColor: theme.accentSoft, borderRadius: 10 },
+                        isDimmedByFilter && { opacity: 0.25 },
+                      ]}
+                      onPress={() => onSelectDay(dateStr)}
+                      activeOpacity={0.65}
+                    >
+                      {/* 상단 날짜 숫자 + 날씨/메모 인디케이터 */}
+                      <View style={styles.cellTopRow}>
+                        {dayWeather && !isDisabled ? (
+                          <Text style={{ fontSize: 8 }}>{dayWeather.icon}</Text>
+                        ) : (
+                          <View style={{ width: 8 }} />
+                        )}
+
+                        <View
+                          style={[
+                            styles.dateNumBadge,
+                            isToday && { backgroundColor: theme.todayCircle },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.dayNumber,
+                              {
+                                color: isDisabled
+                                  ? theme.border
+                                  : isToday
+                                  ? '#FFFFFF'
+                                  : isHoliday
+                                  ? '#EF4444'
+                                  : theme.text,
+                                fontWeight: isToday || isSelected ? '800' : '600',
+                              },
+                            ]}
+                          >
+                            {date.day}
+                          </Text>
+                        </View>
+
+                        <View style={styles.miniDotRow}>
+                          {marking.memo || marking.hMemo || marking.dMemo ? (
+                            <View
+                              style={[
+                                styles.miniDot,
+                                { backgroundColor: isDateDay ? theme.accent : theme.primary },
+                              ]}
+                            />
+                          ) : null}
+                        </View>
+                      </View>
+
+                      {/* 기념일 / 공휴일 라벨 */}
+                      <View style={styles.annivRow}>
+                        {marking.annivText ? (
+                          <Text style={[styles.microLabel, { color: theme.accent }]} numberOfLines={1}>
+                            {marking.annivText.replace(/^[🎂🎉❤️]\s*/, '')}
+                          </Text>
+                        ) : isHoliday ? (
+                          <Text style={[styles.microLabel, { color: '#EF4444' }]} numberOfLines={1}>
+                            {isHoliday}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      {/* 깔끔한 캡슐형 듀얼 근무 배지 ('해/다원' 반복 텍스트 제거) */}
+                      <View style={[styles.dualShiftContainer, isDisabled && { opacity: 0.3 }]}>
+                        {calendarFilter !== 'DAWON' && marking.haeShift ? (
+                          <View
+                            style={[
+                              styles.shiftPill,
+                              { backgroundColor: marking.haeShift.color },
+                              calendarFilter === 'HAE' && { flex: 1 },
+                            ]}
+                          >
+                            <Text style={[styles.shiftPillText, { color: marking.haeShift.textColor }]}>
+                              {marking.haeShift.text}
+                              {marking.haeShift.ot ? `+${marking.haeShift.ot}` : ''}
+                            </Text>
+                          </View>
+                        ) : calendarFilter !== 'DAWON' ? (
+                          <View style={styles.shiftPillEmpty} />
+                        ) : null}
+
+                        {calendarFilter !== 'HAE' && marking.dawonShift ? (
+                          <View
+                            style={[
+                              styles.shiftPill,
+                              { backgroundColor: marking.dawonShift.color },
+                              calendarFilter === 'DAWON' && { flex: 1 },
+                            ]}
+                          >
+                            <Text style={[styles.shiftPillText, { color: marking.dawonShift.textColor }]}>
+                              {marking.dawonShift.text}
+                              {marking.dawonShift.ot ? `+${marking.dawonShift.ot}` : ''}
+                            </Text>
+                          </View>
+                        ) : calendarFilter !== 'HAE' ? (
+                          <View style={[styles.shiftPillEmpty, { backgroundColor: theme.cardSub }]} />
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            </View>
+
+            {/* ==========================================
+                선택한 날짜의 하단 마스터-디테일 브리핑 카드
+            ========================================== */}
+            <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={styles.detailHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Text style={[styles.detailDateTitle, { color: theme.text }]}>
+                    {formatKoreanDate(selectedDate)}
+                  </Text>
+                  {holidays[selectedDate] && (
+                    <View style={[styles.tagBadge, { backgroundColor: '#FEE2E2' }]}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#DC2626' }}>
+                        {holidays[selectedDate]}
+                      </Text>
+                    </View>
+                  )}
+                  {selectedMarking.annivText && (
+                    <View style={[styles.tagBadge, { backgroundColor: theme.accentSoft }]}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: theme.accent }}>
+                        {selectedMarking.annivText}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => openEditSheet(selectedDate)}
+                  style={[styles.editTriggerBtn, { backgroundColor: theme.primary }]}
+                >
+                  <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>일정·근무 편집</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 해 & 다원 근무 요약 박스 */}
+              <View style={styles.personGrid}>
+                <TouchableOpacity
+                  onPress={() => openEditSheet(selectedDate)}
+                  style={[styles.personCard, { backgroundColor: theme.cardSub, borderColor: theme.border }]}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>☀️ 해 근무</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    {currentHaeShift && (
+                      <View style={[styles.MiniBadge, { backgroundColor: currentHaeShift.color }]}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: currentHaeShift.textColor }}>
+                          {currentHaeShift.label}
+                        </Text>
+                      </View>
+                    )}
+                    {currentHaeShift?.ot ? (
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: theme.primary }}>
+                        +{currentHaeShift.ot}시간 OT
+                      </Text>
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => openEditSheet(selectedDate)}
+                  style={[styles.personCard, { backgroundColor: theme.cardSub, borderColor: theme.border }]}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>🌙 다원 근무</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    {currentDawonShift ? (
+                      <View style={[styles.MiniBadge, { backgroundColor: currentDawonShift.color }]}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: currentDawonShift.textColor }}>
+                          {currentDawonShift.label}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={{ fontSize: 12, color: theme.subText, fontWeight: '600' }}>미입력 (터치하여 등록)</Text>
+                    )}
+                    {currentDawonShift?.ot ? (
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: theme.primary }}>
+                        +{currentDawonShift.ot}시간 OT
+                      </Text>
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* 출퇴근 시간대 핀셋 날씨 브리핑 */}
+              {selectedWeather && (
+                <View style={[styles.weatherBanner, { backgroundColor: theme.cardSub, borderColor: theme.border }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: theme.text }}>
+                      {selectedWeather.icon} {selectedWeather.label} · 최고 {selectedWeather.maxTemp}° / 최저 {selectedWeather.minTemp}°
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: '700',
+                        color: selectedWeather.maxPop >= 50 ? '#EF4444' : theme.subText,
+                      }}
+                    >
+                      강수확률 {selectedWeather.maxPop}%
+                    </Text>
+                  </View>
+                  {currentHaeShift && (
+                    <Text style={{ fontSize: 11, color: theme.subText, marginTop: 2 }}>
+                      • {getShiftCommuteBriefing('해', currentHaeShift, selectedWeather)}
+                    </Text>
+                  )}
+                  {currentDawonShift && (
+                    <Text style={{ fontSize: 11, color: theme.subText, marginTop: 2 }}>
+                      • {getShiftCommuteBriefing('다원', currentDawonShift, selectedWeather)}
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {/* 메모 프리뷰 영역 */}
+              <TouchableOpacity
+                onPress={() => openEditSheet(selectedDate)}
+                style={[styles.memoPreviewBox, { backgroundColor: theme.cardSub, borderColor: theme.border }]}
+              >
+                {selectedMarking.memo || selectedMarking.hMemo || selectedMarking.dMemo ? (
+                  <View style={{ gap: 4 }}>
+                    {selectedMarking.memo ? (
+                      <Text style={{ fontSize: 13, color: theme.text, fontWeight: '600' }}>
+                        💬 공용: {selectedMarking.memo}
+                      </Text>
+                    ) : null}
+                    {selectedMarking.hMemo ? (
+                      <Text style={{ fontSize: 12, color: theme.subText }}>☀️ 해: {selectedMarking.hMemo}</Text>
+                    ) : null}
+                    {selectedMarking.dMemo ? (
+                      <Text style={{ fontSize: 12, color: theme.subText }}>🌙 다원: {selectedMarking.dMemo}</Text>
+                    ) : null}
+                  </View>
+                ) : (
+                  <Text style={{ fontSize: 12, color: theme.subText }}>
+                    등록된 일정이나 메모가 없습니다. 터치하여 데이트나 메모를 남겨보세요.
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
+          </ScrollView>
+        )}
+
+        {/* ==========================================
+            탭 2: 데이트·디데이 라운지 (끼리 Kkiri 감성)
+        ========================================== */}
+        {mainTab === 'dday' && (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={[styles.heroBanner, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: theme.accent, marginBottom: 4 }}>
+                OUR COUPLE STORY
+              </Text>
+              <Text style={{ fontSize: 24, fontWeight: '900', color: theme.text }}>
+                우리가 함께한 지 {coupleDaysCount}일 💕
+              </Text>
+              <Text style={{ fontSize: 12, color: theme.subText, marginTop: 4 }}>
+                시작일: 2026년 6월 26일 · 이번 달 겹휴무 {monthlyStats.doubleOffCount}회 / 데이트 {monthlyStats.dateCount}회
+              </Text>
+            </View>
+
+            <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={[styles.sectionHeaderTitle, { color: theme.text }]}>✨ 다가오는 데이트 & 기념일</Text>
+              {getUpcomingMilestones().length === 0 ? (
+                <Text style={{ fontSize: 13, color: theme.subText, paddingVertical: 20, textAlign: 'center' }}>
+                  예정된 데이트(♥) 일정이 없습니다. 캘린더에서 데이트를 등록해 보세요!
+                </Text>
+              ) : (
+                getUpcomingMilestones().map((item, idx) => (
+                  <TouchableOpacity
+                    key={`${item.date}-${idx}`}
+                    onPress={() => {
+                      setSelectedDate(item.date);
+                      setMainTab('calendar');
+                    }}
+                    style={[styles.milestoneRow, { borderBottomColor: theme.border }]}
+                  >
+                    <View>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text }}>{item.title}</Text>
+                      <Text style={{ fontSize: 12, color: theme.subText, marginTop: 2 }}>
+                        {formatKoreanDate(item.date)}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.ddayBadge,
+                        { backgroundColor: item.diff === 0 ? theme.accent : theme.primarySoft },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: '800',
+                          color: item.diff === 0 ? '#FFFFFF' : theme.primary,
+                        }}
+                      >
+                        {item.diff === 0 ? 'D-Day' : `D-${item.diff}`}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          </ScrollView>
+        )}
+
+        {/* ==========================================
+            탭 3: 타임라인 (메모 수정 이력 피드)
+        ========================================== */}
+        {mainTab === 'activity' && (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={[styles.sectionHeaderTitle, { color: theme.text }]}>🕒 최근 메모 변경 타임라인</Text>
+              <Text style={{ fontSize: 11, color: theme.subText, marginBottom: 12 }}>
+                현재 기기에서 추가·수정·삭제한 메모 기록입니다.
+              </Text>
+              {memoHistory.length === 0 ? (
+                <Text style={{ color: theme.subText, textAlign: 'center', paddingVertical: 30, fontSize: 13 }}>
+                  아직 기록된 메모 변경 이력이 없습니다.
+                </Text>
+              ) : (
+                memoHistory.map((log) => (
+                  <View key={log.id} style={[styles.milestoneRow, { borderBottomColor: theme.border }]}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: theme.primary }}>
+                          {log.targetDate} ({log.tab} 메모)
+                        </Text>
+                        <Text style={{ fontSize: 11, color: theme.subText }}>
+                          {log.type === 'ADD' ? '새로 작성' : log.type === 'EDIT' ? '수정됨' : '삭제됨'}
+                        </Text>
+                      </View>
+                      {log.type === 'DELETE' ? (
+                        <Text style={{ color: '#EF4444', fontSize: 12 }}>🗑️ {formatDateTime(log.timestamp)}에 지워짐</Text>
+                      ) : (
+                        <Text style={{ color: theme.text, fontSize: 13, fontWeight: '500' }}>{log.content}</Text>
+                      )}
+                      <Text style={{ fontSize: 10, color: theme.subText, marginTop: 4 }}>
+                        {formatDateTime(log.timestamp)}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          </ScrollView>
+        )}
+
+        {/* ==========================================
+            탭 4: 관리·위젯 (위젯 연동, 다크모드, 급여 금고)
+        ========================================== */}
+        {mainTab === 'settings' && (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={[styles.sectionHeaderTitle, { color: theme.text }]}>⚙️ 앱 환경설정 & 연동</Text>
+
+              <TouchableOpacity
+                onPress={() => setWidgetModalVisible(true)}
+                style={[styles.settingItem, { borderBottomColor: theme.border }]}
+              >
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text }}>📲 아이폰 잠금화면 위젯 연동</Text>
+                  <Text style={{ fontSize: 12, color: theme.subText, marginTop: 2 }}>
+                    iOS 기본 캘린더(.ics) 실시간 구독 설정
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 16, color: theme.subText }}>›</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setIsDark(!isDark)}
+                style={[styles.settingItem, { borderBottomColor: theme.border }]}
+              >
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text }}>
+                    {isDark ? '☀️ 라이트 모드로 전환' : '🌙 다크 모드로 전환'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: theme.subText, marginTop: 2 }}>
+                    눈이 편안한 화면 테마 변경
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: theme.primary }}>
+                  {isDark ? '켜짐' : '꺼짐'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleManualRefresh}
+                style={[styles.settingItem, { borderBottomColor: theme.border }]}
+              >
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text }}>🔄 데이터 및 기상청/공휴일 동기화</Text>
+                  <Text style={{ fontSize: 12, color: theme.subText, marginTop: 2 }}>
+                    최신 DB 근무표와 14일 날씨를 즉시 새로고침합니다
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 16, color: theme.subText }}>↻</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={openVaultModal} style={[styles.settingItem, { borderBottomWidth: 0 }]}>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text }}>🔒 관리자 급여 & OT 정산소</Text>
+                  <Text style={{ fontSize: 12, color: theme.subText, marginTop: 2 }}>
+                    비밀번호 인증 후 열람 가능 (창 닫을 시 즉시 잠금)
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 16, color: theme.subText }}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        )}
+
+        {/* ==========================================
+            하단 탭 네비게이션 바 (Toss / Kkiri 스타일)
+        ========================================== */}
+        <View style={[styles.bottomTabBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
+          {[
+            { id: 'calendar', icon: '📅', label: '캘린더' },
+            { id: 'dday', icon: '❤️', label: '디데이' },
+            { id: 'activity', icon: '🕒', label: '기록' },
+            { id: 'settings', icon: '⚙️', label: '관리·위젯' },
+          ].map((tab) => {
+            const active = mainTab === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                onPress={() => setMainTab(tab.id as any)}
+                style={styles.bottomTabItem}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 16, opacity: active ? 1 : 0.45 }}>{tab.icon}</Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: active ? '800' : '600',
+                    color: active ? theme.text : theme.subText,
+                    marginTop: 2,
+                  }}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* ==========================================
+          바텀시트 모달 1: 날짜별 근무·OT·메모 편집
+      ========================================== */}
+      <Modal visible={editModalVisible} transparent={true} animationType="slide" onRequestClose={closeModalAndSave}>
+        <Pressable style={styles.sheetOverlay} onPress={closeModalAndSave}>
+          <Pressable
+            style={[styles.bottomSheet, { backgroundColor: theme.card }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ width: '100%' }}>
+              <View style={styles.sheetNavHeader}>
+                <TouchableOpacity onPress={() => navigateDate('prev')} style={styles.arrowBtn}>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: theme.text }}>{'‹'}</Text>
+                </TouchableOpacity>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 17, fontWeight: '800', color: theme.text }}>
+                    {formatKoreanDate(selectedDate)}
+                  </Text>
+                  {holidays[selectedDate] ? (
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#EF4444', marginTop: 2 }}>
+                      {holidays[selectedDate]}
+                    </Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity onPress={() => navigateDate('next')} style={styles.arrowBtn}>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: theme.text }}>{'›'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 해의 근무 선택 */}
+              <View style={[styles.editSectionBox, { backgroundColor: theme.cardSub, borderColor: theme.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text }}>
+                    ☀️ 해 근무 {currentHaeShift ? `(${currentHaeShift.label}${currentHaeShift.ot ? ` + OT${currentHaeShift.ot}` : ''})` : ''}
+                  </Text>
+                  <TouchableOpacity onPress={clearHaeShift}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: theme.primary }}>자동 계산 복구</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.shiftBtnGrid}>
+                  {Object.values(HAE_SHIFTS).map((shift) => {
+                    const selected = currentHaeShift?.id === shift.id;
+                    return (
+                      <TouchableOpacity
+                        key={shift.id}
+                        style={[
+                          styles.modernShiftBtn,
+                          { backgroundColor: shift.color },
+                          selected && { borderWidth: 2, borderColor: theme.text },
+                        ]}
+                        onPress={() => updateHaeShift(shift)}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: shift.textColor }}>{shift.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.otRow}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText, marginRight: 6 }}>연장(OT):</Text>
+                  {[1, 2, 3, 4].map((ot) => {
+                    const active = currentHaeShift?.ot === ot;
+                    return (
+                      <TouchableOpacity
+                        key={`h-ot-${ot}`}
+                        style={[
+                          styles.otChip,
+                          { borderColor: active ? theme.primary : theme.border, backgroundColor: active ? theme.primarySoft : theme.card },
+                        ]}
+                        onPress={() => setOT('hae', ot)}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: active ? theme.primary : theme.subText }}>
+                          +{ot}시간
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* 다원의 근무 선택 */}
+              <View style={[styles.editSectionBox, { backgroundColor: theme.cardSub, borderColor: theme.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text }}>
+                    🌙 다원 근무 {currentDawonShift ? `(${currentDawonShift.label}${currentDawonShift.ot ? ` + OT${currentDawonShift.ot}` : ''})` : '(미입력)'}
+                  </Text>
+                  <TouchableOpacity onPress={clearDawonShift}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#EF4444' }}>지우기</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.shiftBtnGrid}>
+                  {Object.values(DAWON_SHIFTS).map((shift) => {
+                    const selected = currentDawonShift?.id === shift.id;
+                    return (
+                      <TouchableOpacity
+                        key={shift.id}
+                        style={[
+                          styles.modernShiftBtn,
+                          { backgroundColor: shift.color },
+                          selected && { borderWidth: 2, borderColor: theme.text },
+                        ]}
+                        onPress={() => updateDawonShift(shift)}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: shift.textColor }}>{shift.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.otRow}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText, marginRight: 6 }}>연장(OT):</Text>
+                  {[1, 2, 3, 4].map((ot) => {
+                    const active = currentDawonShift?.ot === ot;
+                    return (
+                      <TouchableOpacity
+                        key={`d-ot-${ot}`}
+                        style={[
+                          styles.otChip,
+                          { borderColor: active ? theme.primary : theme.border, backgroundColor: active ? theme.primarySoft : theme.card },
+                        ]}
+                        onPress={() => setOT('dawon', ot)}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: active ? theme.primary : theme.subText }}>
+                          +{ot}시간
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* 메모 입력 탭 */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {(['공용', '해', '다원'] as const).map((tab) => {
+                    const active = activeMemoTab === tab;
+                    return (
+                      <TouchableOpacity
+                        key={tab}
+                        onPress={() => setActiveMemoTab(tab)}
+                        style={[
+                          styles.memoTabChip,
+                          { backgroundColor: active ? theme.text : theme.cardSub },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: active ? theme.card : theme.subText }}>
+                          {tab} 메모
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {activeMemoTab === '공용' && (
+                  <TouchableOpacity
+                    style={[styles.dateToggleChip, { backgroundColor: theme.accentSoft }]}
+                    onPress={addDateMemo}
+                  >
+                    <Text style={{ color: theme.accent, fontSize: 12, fontWeight: '800' }}>♥ 데이트 표시</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TextInput
+                style={[
+                  styles.modernInput,
+                  { color: theme.text, backgroundColor: theme.cardSub, borderColor: theme.border },
+                ]}
+                placeholder={activeMemoTab === '공용' ? '함께 공유할 일정이나 데이트 장소를 적어보세요' : `${activeMemoTab}의 개인 메모`}
+                placeholderTextColor={theme.subText}
+                value={activeMemoTab === '공용' ? memoInput : activeMemoTab === '해' ? haeMemoInput : dawonMemoInput}
+                onChangeText={activeMemoTab === '공용' ? setMemoInput : activeMemoTab === '해' ? setHaeMemoInput : setDawonMemoInput}
+                multiline={true}
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+                <TouchableOpacity
+                  style={[styles.sheetSecondaryBtn, { borderColor: theme.border }]}
+                  onPress={() => {
+                    if (activeMemoTab === '공용') setMemoInput('');
+                    else if (activeMemoTab === '해') setHaeMemoInput('');
+                    else setDawonMemoInput('');
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: theme.subText }}>내용 비우기</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.sheetPrimaryBtn, { backgroundColor: theme.primary }]}
+                  onPress={closeModalAndSave}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }}>저장 완료</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
 
-      {/* 🔒 관리자 전용 비밀 급여 & OT 대시보드 모달 */}
+      {/* ==========================================
+          모달 2: 아이폰 위젯(.ics) 실시간 구독
+      ========================================== */}
+      <Modal visible={widgetModalVisible} transparent={true} animationType="fade" onRequestClose={() => setWidgetModalVisible(false)}>
+        <Pressable style={styles.sheetOverlay} onPress={() => setWidgetModalVisible(false)}>
+          <Pressable style={[styles.centerModal, { backgroundColor: theme.card }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 6 }}>
+              📲 아이폰 캘린더 & 위젯 연동
+            </Text>
+            <Text style={{ fontSize: 12, color: theme.subText, lineHeight: 18, marginBottom: 16 }}>
+              구독하기를 누르면 아이폰 기본 캘린더 앱에 해·다원의 근무표와 데이트가 자동 동기화됩니다.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.fullWidthBtn, { backgroundColor: theme.primary, marginBottom: 8 }]}
+              onPress={() => Linking.openURL(getWidgetSubscriptionUrls().webcalUrl)}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 14 }}>
+                🍏 아이폰 캘린더에 원클릭 구독하기
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.fullWidthBtn, { backgroundColor: theme.cardSub, borderWidth: 1, borderColor: theme.border }]}
+              onPress={handleCopyWidgetUrl}
+            >
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
+                {copiedWidgetUrl ? '✅ 구독 URL 복사 완료!' : '📋 수동 등록용 URL 복사하기'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setWidgetModalVisible(false)} style={{ marginTop: 14, alignSelf: 'center', padding: 6 }}>
+              <Text style={{ color: theme.subText, fontWeight: '700', fontSize: 13 }}>닫기</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ==========================================
+          모달 3: 관리자 보안 급여 대시보드 (970045)
+      ========================================== */}
       <Modal visible={vaultModalVisible} transparent={true} animationType="fade" onRequestClose={closeVaultModal}>
-        <Pressable style={styles.modalOverlay} onPress={closeVaultModal}>
-          <Pressable style={[styles.modalContent, { backgroundColor: themeColors.modalBg }]} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.sheetOverlay} onPress={closeVaultModal}>
+          <Pressable style={[styles.centerModal, { backgroundColor: theme.card }]} onPress={(e) => e.stopPropagation()}>
             {!isVaultUnlocked ? (
-              <View style={{ alignItems: 'center', width: '100%', paddingVertical: 15 }}>
-                <Text style={{ fontSize: 32, marginBottom: 10 }}>🔒</Text>
-                <Text style={[styles.modalDate, { color: themeColors.text, marginBottom: 6 }]}>관리자 보안 영역</Text>
-                <Text style={{ fontSize: 12, color: themeColors.subText, marginBottom: 20, textAlign: 'center' }}>
-                  개인 급여 및 OT 통계는 비밀번호 입력 후 열람 가능합니다.{'\n'}(창을 닫거나 새로고침하면 즉시 다시 잠깁니다)
+              <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 6 }}>
+                  🔒 관리자 보안 영역
+                </Text>
+                <Text style={{ fontSize: 12, color: theme.subText, marginBottom: 16, textAlign: 'center' }}>
+                  급여 및 OT 정산 내역은 비밀번호 입력 후 열람 가능합니다.
                 </Text>
                 <TextInput
-                  style={[styles.pinInputBox, { color: themeColors.text, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7', borderColor: pinError ? '#FF3B30' : themeColors.divider }]}
-                  placeholder="비밀번호 6자리 입력"
-                  placeholderTextColor={themeColors.subText}
+                  style={[
+                    styles.pinInput,
+                    { color: theme.text, backgroundColor: theme.cardSub, borderColor: pinError ? '#EF4444' : theme.border },
+                  ]}
+                  placeholder="PIN 6자리"
+                  placeholderTextColor={theme.subText}
                   secureTextEntry={true}
                   keyboardType="number-pad"
                   maxLength={6}
@@ -1173,63 +1588,64 @@ export default function App() {
                   autoFocus={true}
                 />
                 {pinError && (
-                  <Text style={{ color: '#FF3B30', fontSize: 12, marginTop: 8, fontWeight: 'bold' }}>
+                  <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 8, fontWeight: '700' }}>
                     비밀번호가 일치하지 않습니다.
                   </Text>
                 )}
-                <TouchableOpacity onPress={closeVaultModal} style={{ marginTop: 20, padding: 10 }}>
-                  <Text style={{ color: themeColors.subText, fontWeight: '600' }}>닫기</Text>
+                <TouchableOpacity onPress={closeVaultModal} style={{ marginTop: 16, padding: 8 }}>
+                  <Text style={{ color: theme.subText, fontWeight: '700' }}>닫기</Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <ScrollView showsVerticalScrollIndicator={false} style={{ width: '100%' }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                  <Text style={[styles.modalDate, { color: themeColors.text }]}>📊 {currentViewYearMonth} 급여 리포트</Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '800', color: theme.text }}>
+                    📊 {currentViewYearMonth} 급여 정산서
+                  </Text>
                   <TouchableOpacity onPress={closeVaultModal}>
-                    <Text style={{ color: '#FF3B30', fontWeight: 'bold', fontSize: 14 }}>잠금 및 닫기 🔒</Text>
+                    <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 13 }}>잠금 및 닫기 🔒</Text>
                   </TouchableOpacity>
                 </View>
 
-                <View style={[styles.statBox, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}>
-                  <Text style={{ fontSize: 12, color: themeColors.subText, marginBottom: 4 }}>예상 실수령액 (세금 11.98% + 저축 25만 차감)</Text>
-                  <Text style={{ fontSize: 24, fontWeight: '900', color: themeColors.primary }}>
-                    {salaryStats.finalNetPay.toLocaleString()}원
+                <View style={[styles.salaryHeroBox, { backgroundColor: theme.primarySoft }]}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: theme.primary, marginBottom: 4 }}>
+                    예상 실수령액 (세금 11.98% · 저축 25만 차감)
                   </Text>
-                  <Text style={{ fontSize: 11, color: themeColors.subText, marginTop: 4 }}>
-                    순수 세후(저축 차감 전): {salaryStats.netPayBeforeSavings.toLocaleString()}원
+                  <Text style={{ fontSize: 24, fontWeight: '900', color: theme.primary }}>
+                    {monthlyStats.finalNetPay.toLocaleString()}원
+                  </Text>
+                  <Text style={{ fontSize: 11, color: theme.subText, marginTop: 4 }}>
+                    저축 차감 전 세후: {monthlyStats.netPayBeforeSavings.toLocaleString()}원
                   </Text>
                 </View>
 
-                <Text style={[styles.sectionTitle, { color: themeColors.text, marginTop: 10 }]}>
-                  ⏱️ {currentViewYearMonth} 근무 & 가산 내역 (시급 13,800원)
-                </Text>
-                <View style={styles.statRow}>
-                  <Text style={{ color: themeColors.subText, fontSize: 13 }}>기본급 (고정)</Text>
-                  <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>{BASE_PAY.toLocaleString()}원</Text>
+                <View style={styles.statLine}>
+                  <Text style={{ color: theme.subText, fontSize: 13 }}>기본급</Text>
+                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>{BASE_PAY.toLocaleString()}원</Text>
                 </View>
-                <View style={styles.statRow}>
-                  <Text style={{ color: themeColors.subText, fontSize: 13 }}>평일 연장 (총 {salaryStats.totalOtHours}시간 × 1.5배)</Text>
-                  <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>+{salaryStats.otAllowance.toLocaleString()}원</Text>
+                <View style={styles.statLine}>
+                  <Text style={{ color: theme.subText, fontSize: 13 }}>연장 수당 ({monthlyStats.totalOtHours}시간 × 1.5배)</Text>
+                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>+{monthlyStats.otAllowance.toLocaleString()}원</Text>
                 </View>
-                <View style={styles.statRow}>
-                  <Text style={{ color: themeColors.subText, fontSize: 13 }}>일반 야간 ({salaryStats.normalNightCount}회 × 8h × 0.5배)</Text>
-                  <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>+{salaryStats.normalNightAllowance.toLocaleString()}원</Text>
+                <View style={styles.statLine}>
+                  <Text style={{ color: theme.subText, fontSize: 13 }}>일반 야간 ({monthlyStats.normalNightCount}회)</Text>
+                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>+{monthlyStats.normalNightAllowance.toLocaleString()}원</Text>
                 </View>
-                <View style={styles.statRow}>
-                  <Text style={{ color: themeColors.subText, fontSize: 13 }}>공휴일 야간 ({salaryStats.holidayNightCount}회 × 8h × 2.0배)</Text>
-                  <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>+{salaryStats.holidayNightAllowance.toLocaleString()}원</Text>
+                <View style={styles.statLine}>
+                  <Text style={{ color: theme.subText, fontSize: 13 }}>공휴일 야간 ({monthlyStats.holidayNightCount}회 × 2.0배)</Text>
+                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>+{monthlyStats.holidayNightAllowance.toLocaleString()}원</Text>
                 </View>
-                {salaryStats.holidayDaySwingCount > 0 && (
-                  <View style={styles.statRow}>
-                    <Text style={{ color: themeColors.subText, fontSize: 13 }}>공휴일 주간/스윙 ({salaryStats.holidayDaySwingCount}회 × 1.5배)</Text>
-                    <Text style={{ color: themeColors.text, fontWeight: '600', fontSize: 13 }}>+{salaryStats.holidayDaySwingAllowance.toLocaleString()}원</Text>
+                {monthlyStats.holidayDaySwingCount > 0 && (
+                  <View style={styles.statLine}>
+                    <Text style={{ color: theme.subText, fontSize: 13 }}>공휴일 주간/스윙 ({monthlyStats.holidayDaySwingCount}회)</Text>
+                    <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>+{monthlyStats.holidayDaySwingAllowance.toLocaleString()}원</Text>
                   </View>
                 )}
 
-                <View style={[styles.statRow, { alignItems: 'center', marginTop: 6 }]}>
-                  <Text style={{ color: themeColors.subText, fontSize: 13 }}>별도 상여/배려금 (직접 입력)</Text>
+                <View style={[styles.statLine, { alignItems: 'center', marginTop: 4 }]}>
+                  <Text style={{ color: theme.subText, fontSize: 13 }}>별도 상여/배려금</Text>
                   <TextInput
-                    style={[styles.bonusInput, { color: themeColors.text, backgroundColor: isDark ? '#38383A' : '#E5E5EA' }]}
+                    style={[styles.bonusBox, { color: theme.text, backgroundColor: theme.cardSub, borderColor: theme.border }]}
                     keyboardType="number-pad"
                     value={extraBonusInput}
                     onChangeText={setExtraBonusInput}
@@ -1237,247 +1653,22 @@ export default function App() {
                   />
                 </View>
 
-                <View style={[styles.divider, { backgroundColor: themeColors.divider, marginVertical: 12 }]} />
+                <View style={{ height: 1, backgroundColor: theme.border, marginVertical: 10 }} />
 
-                <View style={styles.statRow}>
-                  <Text style={{ color: themeColors.text, fontWeight: 'bold', fontSize: 14 }}>세전 총액</Text>
-                  <Text style={{ color: themeColors.text, fontWeight: 'bold', fontSize: 14 }}>{salaryStats.grossPay.toLocaleString()}원</Text>
+                <View style={styles.statLine}>
+                  <Text style={{ color: theme.text, fontWeight: '800', fontSize: 14 }}>세전 총액</Text>
+                  <Text style={{ color: theme.text, fontWeight: '800', fontSize: 14 }}>{monthlyStats.grossPay.toLocaleString()}원</Text>
                 </View>
-                <View style={styles.statRow}>
-                  <Text style={{ color: '#FF3B30', fontSize: 13 }}>제세공과금 공제 (11.98%)</Text>
-                  <Text style={{ color: '#FF3B30', fontSize: 13 }}>-{salaryStats.taxDeduction.toLocaleString()}원</Text>
-                </View>
-                <View style={styles.statRow}>
-                  <Text style={{ color: '#FF3B30', fontSize: 13 }}>사내 저축 공제</Text>
-                  <Text style={{ color: '#FF3B30', fontSize: 13 }}>-{SAVINGS_DEDUCTION.toLocaleString()}원</Text>
+                <View style={styles.statLine}>
+                  <Text style={{ color: '#EF4444', fontSize: 12 }}>공제 합계 (세금 + 사내저축)</Text>
+                  <Text style={{ color: '#EF4444', fontSize: 12 }}>
+                    -{(monthlyStats.taxDeduction + SAVINGS_DEDUCTION).toLocaleString()}원
+                  </Text>
                 </View>
               </ScrollView>
             )}
           </Pressable>
         </Pressable>
-      </Modal>
-
-      {/* 날짜 상세 편집 모달 (날씨 브리핑 포함) */}
-      <Modal visible={modalVisible} transparent={true} animationType="fade" onRequestClose={closeModalAndSave}>
-        <Pressable style={styles.modalOverlay} onPress={closeModalAndSave}>
-          <Pressable style={[styles.modalContent, { backgroundColor: themeColors.modalBg }]} onPress={(e) => e.stopPropagation()}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }} style={{ width: '100%' }}>
-              <View style={styles.modalHeaderNavigation}>
-                <TouchableOpacity onPress={() => navigateDate('prev')} style={{ padding: 10 }}>
-                  <Text style={{ fontSize: 20, color: themeColors.primary, fontWeight: 'bold' }}>{'<'}</Text>
-                </TouchableOpacity>
-
-                <Text style={[styles.modalDate, { color: themeColors.text }]}>
-                  {selectedDate} {holidays[selectedDate] ? `(${holidays[selectedDate]})` : ''}
-                </Text>
-
-                <TouchableOpacity onPress={() => navigateDate('next')} style={{ padding: 10 }}>
-                  <Text style={{ fontSize: 20, color: themeColors.primary, fontWeight: 'bold' }}>{'>'}</Text>
-                </TouchableOpacity>
-              </View>
-
-              {selectedWeather ? (
-                <View style={[styles.weatherBriefBox, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: themeColors.text }}>
-                      {selectedWeather.icon} {selectedWeather.label} (최고 {selectedWeather.maxTemp}° / 최저 {selectedWeather.minTemp}°)
-                    </Text>
-                    <Text style={{ fontSize: 11, color: selectedWeather.maxPop >= 50 ? '#FF3B30' : themeColors.subText, fontWeight: 'bold' }}>
-                      강수확률 {selectedWeather.maxPop}%
-                    </Text>
-                  </View>
-                  {currentHaeShift && (
-                    <Text style={{ fontSize: 11, color: themeColors.subText, marginTop: 2 }}>
-                      {getShiftCommuteBriefing('해', currentHaeShift, selectedWeather)}
-                    </Text>
-                  )}
-                  {currentDawonShift && (
-                    <Text style={{ fontSize: 11, color: themeColors.subText, marginTop: 2 }}>
-                      {getShiftCommuteBriefing('다원', currentDawonShift, selectedWeather)}
-                    </Text>
-                  )}
-                </View>
-              ) : null}
-
-              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
-                ☀️ 해의 근무 {currentHaeShift ? `(현재: ${currentHaeShift.label}${currentHaeShift.ot ? ` OT${currentHaeShift.ot}` : ''})` : ''}
-              </Text>
-              <View style={styles.shiftButtonRow}>
-                {Object.values(HAE_SHIFTS).map((shift) => (
-                  <TouchableOpacity key={shift.id} style={[styles.shiftButton, { backgroundColor: shift.color }]} onPress={() => updateHaeShift(shift)}>
-                    <Text style={[styles.shiftButtonText, { color: shift.textColor }]}>{shift.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={styles.otButtonRow}>
-                {[1, 2, 3, 4].map((ot) => (
-                  <TouchableOpacity
-                    key={`h-ot-${ot}`}
-                    style={[
-                      styles.otButton,
-                      currentHaeShift?.ot === ot && {
-                        borderColor: themeColors.primary,
-                        borderWidth: 1,
-                        backgroundColor: isDark ? '#2C2C2E' : '#E5E5EA',
-                      },
-                    ]}
-                    onPress={() => setOT('hae', ot)}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: currentHaeShift?.ot === ot ? themeColors.primary : themeColors.subText,
-                        fontWeight: currentHaeShift?.ot === ot ? 'bold' : 'normal',
-                      }}
-                    >
-                      OT{ot}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TouchableOpacity onPress={clearHaeShift}>
-                <Text style={[styles.resetText, { color: themeColors.primary }]}>☀️ 근무 자동 계산으로 복구</Text>
-              </TouchableOpacity>
-
-              <View style={[styles.divider, { backgroundColor: themeColors.divider }]} />
-
-              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
-                🌙 다원의 근무 {currentDawonShift ? `(현재: ${currentDawonShift.label}${currentDawonShift.ot ? ` OT${currentDawonShift.ot}` : ''})` : ''}
-              </Text>
-              <View style={styles.shiftButtonRow}>
-                {Object.values(DAWON_SHIFTS).map((shift) => (
-                  <TouchableOpacity key={shift.id} style={[styles.shiftButtonDawon, { backgroundColor: shift.color }]} onPress={() => updateDawonShift(shift)}>
-                    <Text style={[styles.shiftButtonText, { color: shift.textColor, fontSize: 13 }]}>{shift.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={styles.otButtonRow}>
-                {[1, 2, 3, 4].map((ot) => (
-                  <TouchableOpacity
-                    key={`d-ot-${ot}`}
-                    style={[
-                      styles.otButton,
-                      currentDawonShift?.ot === ot && {
-                        borderColor: themeColors.primary,
-                        borderWidth: 1,
-                        backgroundColor: isDark ? '#2C2C2E' : '#E5E5EA',
-                      },
-                    ]}
-                    onPress={() => setOT('dawon', ot)}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: currentDawonShift?.ot === ot ? themeColors.primary : themeColors.subText,
-                        fontWeight: currentDawonShift?.ot === ot ? 'bold' : 'normal',
-                      }}
-                    >
-                      OT{ot}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TouchableOpacity onPress={clearDawonShift}>
-                <Text style={[styles.resetText, { color: themeColors.primary }]}>× 🌙 근무 지우기</Text>
-              </TouchableOpacity>
-
-              <View style={[styles.divider, { backgroundColor: themeColors.divider }]} />
-
-              <View style={styles.tabContainer}>
-                {['공용', '해', '다원'].map((tab) => (
-                  <TouchableOpacity
-                    key={tab}
-                    onPress={() => setActiveTab(tab)}
-                    style={[styles.tabButton, activeTab === tab && { borderBottomColor: themeColors.primary, borderBottomWidth: 2 }]}
-                  >
-                    <Text style={{ color: activeTab === tab ? themeColors.primary : themeColors.subText, fontWeight: 'bold' }}>{tab} 메모</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', width: '100%', marginBottom: 10 }}>
-                {activeTab === '공용' && (
-                  <TouchableOpacity style={styles.quickDateButton} onPress={addDateMemo}>
-                    <Text style={styles.quickDateButtonText}>♥ 데이트</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <TextInput
-                style={[styles.input, { color: themeColors.text, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
-                placeholder={activeTab === '공용' ? '같이 볼 일정을 남겨요' : `${activeTab}의 개인 메모를 남겨요`}
-                placeholderTextColor={themeColors.subText}
-                value={activeTab === '공용' ? memoInput : activeTab === '해' ? haeMemoInput : dawonMemoInput}
-                onChangeText={activeTab === '공용' ? setMemoInput : activeTab === '해' ? setHaeMemoInput : setDawonMemoInput}
-                multiline={true}
-              />
-
-              <View style={[styles.actionButtonRow, { borderColor: themeColors.divider }]}>
-                <TouchableOpacity
-                  style={[styles.cancelButton, { borderColor: themeColors.divider }]}
-                  onPress={() => {
-                    if (activeTab === '공용') setMemoInput('');
-                    else if (activeTab === '해') setHaeMemoInput('');
-                    else setDawonMemoInput('');
-                  }}
-                >
-                  <Text style={[styles.actionButtonText, { color: themeColors.subText }]}>현재 메모 지우기</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={closeModalAndSave}>
-                  <Text style={[styles.actionButtonText, { color: themeColors.primary, fontWeight: 'bold' }]}>닫고 저장하기</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* 수정 이력 모달 */}
-      <Modal visible={historyModalVisible} transparent={true} animationType="slide">
-        <SafeAreaView style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View style={[styles.historyModalContainer, { backgroundColor: themeColors.cardBg }]}>
-            <View style={[styles.historyHeader, { borderBottomColor: themeColors.divider }]}>
-              <Text style={[styles.historyTitle, { color: themeColors.text }]}>이 기기의 메모 수정 이력</Text>
-              <TouchableOpacity onPress={() => setHistoryModalVisible(false)} style={{ padding: 5 }}>
-                <Text style={{ color: themeColors.primary, fontWeight: 'bold', fontSize: 16 }}>닫기</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1, width: '100%' }}>
-              <Text style={{ fontSize: 11, color: themeColors.subText, textAlign: 'center', marginBottom: 15 }}>
-                ※ 주의: 이 이력은 현재 기기에서 변경한 내역만 저장됩니다.
-              </Text>
-              {memoHistory.length === 0 ? (
-                <Text style={{ color: themeColors.subText, textAlign: 'center', marginTop: 30 }}>기록된 메모 이력이 없습니다.</Text>
-              ) : (
-                memoHistory.map((log) => (
-                  <View key={log.id} style={[styles.historyItem, { borderBottomColor: themeColors.divider }]}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <Text style={{ fontSize: 12, color: themeColors.subText, fontWeight: '600' }}>
-                        {log.targetDate} ({log.tab})
-                      </Text>
-                      <Text style={{ fontSize: 11, color: themeColors.subText }}>
-                        {log.type === 'ADD' ? '추가' : log.type === 'EDIT' ? '수정' : '삭제'}
-                      </Text>
-                    </View>
-
-                    {log.type === 'DELETE' ? (
-                      <Text style={{ color: themeColors.todayBg, fontStyle: 'italic', fontSize: 13 }}>
-                        🗑️ {formatDateTime(log.timestamp)}에 지워짐
-                      </Text>
-                    ) : (
-                      <View>
-                        <Text style={{ color: themeColors.text, fontSize: 14 }}>{log.content}</Text>
-                        <Text style={{ fontSize: 11, color: themeColors.subText, marginTop: 4, alignSelf: 'flex-end' }}>
-                          입력: {formatDateTime(log.timestamp)}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                ))
-              )}
-            </ScrollView>
-          </View>
-        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
@@ -1485,112 +1676,271 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  webCenteringContainer: { flex: 1, width: '100%', maxWidth: 500, alignSelf: 'center' },
-  scrollContent: { paddingBottom: 30 },
-  snackbar: {
-    position: 'absolute',
-    top: 30,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(255, 105, 180, 0.95)',
-    padding: 12,
-    borderRadius: 12,
-    zIndex: 100,
+  webContainer: { flex: 1, width: '100%', maxWidth: 500, alignSelf: 'center' },
+  topHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  brandTitle: { fontSize: 19, fontWeight: '900', letterSpacing: -0.4 },
+  couplePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  couplePillText: { fontSize: 11, fontWeight: '800' },
+  topActionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  snackbarText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
-  header: { flexDirection: 'row', paddingHorizontal: 12, marginVertical: 10, width: '100%', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '900' },
-  headerIconBtn: { padding: 5, marginHorizontal: 2, justifyContent: 'center', alignItems: 'center' },
-  ddayText: { fontSize: 11, color: '#FF69B4', fontWeight: 'bold', marginTop: 2 },
-  calendarWrapper: {
-    marginHorizontal: Platform.OS === 'web' ? 0 : 15,
-    borderRadius: 15,
-    paddingTop: 5,
-    paddingBottom: 15,
+  scrollContent: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 30 },
+  filterBarWrapper: { marginBottom: 10 },
+  filterScroll: { gap: 8, paddingRight: 10 },
+  filterChip: {
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  calendarCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingBottom: 10,
     overflow: 'hidden',
   },
+  legendBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
   calendar: { width: '100%' },
-  legendContainer: { paddingHorizontal: 15, paddingVertical: 8, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', marginRight: 12 },
-  legendCircle: { width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 4 },
-  legendCircleText: { fontSize: 9, fontWeight: '900' },
-  legendText: { fontSize: 10, fontWeight: '700' },
-  dayCell: { height: 65, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 2, width: '100%' },
-  weatherMiniBadge: { position: 'absolute', top: 1, left: 2 },
-  dotsContainer: { position: 'absolute', top: 2, right: 2, flexDirection: 'row', gap: 2 },
-  dot: { width: 4, height: 4, borderRadius: 2 },
-  annivContainer: { height: 11, width: '100%', alignItems: 'center', overflow: 'hidden', marginBottom: 1 },
-  annivText: { fontSize: 8, color: '#FF3B30', fontWeight: 'bold' },
-  dateNumberWrapper: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 1 },
-  dayNumber: { fontSize: 12, fontWeight: '400' },
-  shiftRow: { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'center', width: '100%', paddingHorizontal: 1, marginBottom: 1 },
-  shiftBox: { alignItems: 'center', flex: 1 },
-  personLabel: { fontSize: 8, fontWeight: '700', marginBottom: 1 },
-  circleBadge: { height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  circleText: { fontWeight: '900' },
-  verticalDivider: { width: 1, height: 12, marginHorizontal: 1, marginTop: 4 },
-  refreshButton: {
+  dayCell: {
+    height: 60,
+    width: '96%',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  cellTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 2,
+  },
+  dateNumBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: 'center',
-    backgroundColor: '#FFE4E1',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    alignSelf: 'center',
-    marginTop: 20,
-    marginBottom: 20,
-    minWidth: 180,
-  },
-  refreshButtonText: { color: '#FF3B30', fontWeight: 'bold', fontSize: 13 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '85%', maxWidth: 400, borderRadius: 20, padding: 20, maxHeight: '85%' },
-  weatherBriefBox: { width: '100%', padding: 12, borderRadius: 12, marginBottom: 12 },
-  widgetPrimaryBtn: { width: '100%', paddingVertical: 13, borderRadius: 12, alignItems: 'center', marginBottom: 8 },
-  widgetSecondaryBtn: { width: '100%', paddingVertical: 11, borderRadius: 12, alignItems: 'center', borderWidth: 1 },
-  pinInputBox: { width: '80%', paddingVertical: 12, paddingHorizontal: 15, borderRadius: 12, fontSize: 18, textAlign: 'center', letterSpacing: 6, borderWidth: 1, fontWeight: 'bold' },
-  statBox: { width: '100%', padding: 15, borderRadius: 12, alignItems: 'center', marginBottom: 10 },
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingVertical: 6 },
-  bonusInput: { width: 100, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6, textAlign: 'right', fontSize: 13, fontWeight: 'bold' },
-  modalHeaderNavigation: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 },
-  modalDate: { fontSize: 18, fontWeight: '600' },
-  sectionTitle: { fontSize: 14, fontWeight: '600', alignSelf: 'flex-start', marginBottom: 10 },
-  quickDateButton: { backgroundColor: '#FFE4E1', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 15 },
-  quickDateButtonText: { color: '#FF3B30', fontSize: 12, fontWeight: 'bold' },
-  shiftButtonRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 5 },
-  shiftButton: { width: 45, height: 45, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  shiftButtonDawon: { flex: 1, aspectRatio: 1, maxWidth: 45, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginHorizontal: 2 },
-  shiftButtonText: { fontWeight: '800', fontSize: 15 },
-  otButtonRow: { flexDirection: 'row', gap: 10, marginBottom: 5, alignSelf: 'flex-start' },
-  otButton: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8, backgroundColor: 'transparent' },
-  resetText: { fontSize: 12, marginTop: 5, marginBottom: 15, alignSelf: 'flex-end', fontWeight: '500' },
-  divider: { width: '100%', height: 1, opacity: 0.5, marginBottom: 15 },
-  tabContainer: { flexDirection: 'row', width: '100%', marginBottom: 10 },
-  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  input: { width: '100%', borderRadius: 10, padding: 15, fontSize: 15, marginBottom: 20, minHeight: 80, textAlignVertical: 'top' },
-  actionButtonRow: { flexDirection: 'row', width: '100%', borderTopWidth: 0.5, paddingTop: 5 },
-  cancelButton: { flex: 1, paddingVertical: 15, alignItems: 'center', borderRightWidth: 0.5 },
-  saveButton: { flex: 1, paddingVertical: 15, alignItems: 'center' },
-  actionButtonText: { fontSize: 17 },
-  historyModalContainer: { width: '100%', height: '70%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxWidth: 500, alignSelf: 'center' },
-  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 15, borderBottomWidth: 1, marginBottom: 10 },
-  historyTitle: { fontSize: 18, fontWeight: 'bold' },
-  historyItem: { paddingVertical: 12, borderBottomWidth: 0.5, paddingHorizontal: 5 },
-  celebrationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  particleContainer: { position: 'absolute', width: 1, height: 1, alignItems: 'center', justifyContent: 'center' },
-  particle: { position: 'absolute' },
-  celebrationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingVertical: 24,
-    paddingHorizontal: 28,
     alignItems: 'center',
-    width: '82%',
-    maxWidth: 340,
-    borderWidth: 2.5,
   },
-  celebrationTitle: { fontSize: 20, fontWeight: '900', color: '#1C1C1E', marginBottom: 8, textAlign: 'center' },
-  celebrationSubtitle: { fontSize: 14, color: '#48484A', textAlign: 'center', lineHeight: 20, marginBottom: 16, fontWeight: '500' },
-  celebrationHint: { fontSize: 11, color: '#8E8E93', fontWeight: 'bold' },
+  dayNumber: { fontSize: 12 },
+  miniDotRow: { width: 8, alignItems: 'flex-end' },
+  miniDot: { width: 5, height: 5, borderRadius: 2.5 },
+  annivRow: { height: 11, justifyContent: 'center', alignItems: 'center', width: '100%' },
+  microLabel: { fontSize: 8, fontWeight: '700' },
+  dualShiftContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 2,
+    paddingHorizontal: 2,
+  },
+  shiftPill: {
+    flex: 1,
+    height: 16,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shiftPillEmpty: {
+    flex: 1,
+    height: 16,
+    borderRadius: 5,
+  },
+  shiftPillText: { fontSize: 8, fontWeight: '900' },
+  detailCard: {
+    marginTop: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  detailDateTitle: { fontSize: 16, fontWeight: '800' },
+  tagBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  editTriggerBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
+  personGrid: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  personCard: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  MiniBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  weatherBanner: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  memoPreviewBox: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  heroBanner: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+  },
+  sectionHeaderTitle: { fontSize: 16, fontWeight: '800', marginBottom: 10 },
+  milestoneRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  ddayBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  settingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  bottomTabBar: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    paddingVertical: 8,
+    paddingBottom: Platform.OS === 'ios' ? 16 : 10,
+  },
+  bottomTabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  bottomSheet: {
+    width: '100%',
+    maxWidth: 500,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '88%',
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  sheetNavHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  arrowBtn: { paddingHorizontal: 14, paddingVertical: 6 },
+  editSectionBox: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  shiftBtnGrid: { flexDirection: 'row', gap: 6, marginBottom: 8 },
+  modernShiftBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  otChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
+  memoTabChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  dateToggleChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  modernInput: {
+    width: '100%',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    fontSize: 14,
+    minHeight: 75,
+    textAlignVertical: 'top',
+    marginBottom: 8,
+  },
+  sheetSecondaryBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  sheetPrimaryBtn: {
+    flex: 2,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  centerModal: {
+    width: '88%',
+    maxWidth: 400,
+    borderRadius: 22,
+    padding: 20,
+    marginBottom: 'auto',
+    marginTop: 'auto',
+  },
+  fullWidthBtn: {
+    width: '100%',
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  pinInput: {
+    width: '80%',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    fontSize: 18,
+    textAlign: 'center',
+    letterSpacing: 6,
+    fontWeight: '800',
+  },
+  salaryHeroBox: {
+    padding: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  bonusBox: {
+    width: 110,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    textAlign: 'right',
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });
