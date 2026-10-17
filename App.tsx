@@ -29,7 +29,7 @@ LocaleConfig.defaultLocale = 'kr';
 const CYCLE_BASE_DATE = new Date('2026-09-08T00:00:00Z');
 const COUPLE_START_DATE = new Date('2026-06-26T00:00:00Z');
 
-// ☁️ 모든 기기 간 메모 수정/삭제 이력을 실시간 공유하기 위한 DB 전용 키
+// 모든 기기 간 메모 수정/삭제 이력을 실시간 공유하기 위한 DB 전용 키
 const HISTORY_SYNC_DATE = '1970-01-01';
 
 // 급여 계산 상수 (통상시급 13,800원 기준)
@@ -147,7 +147,6 @@ const formatKoreanDate = (dateStr: string) => {
   return `${Number(parts[1])}월 ${Number(parts[2])}일 (${dayNames[d.getUTCDay()]})`;
 };
 
-// 로컬 기록과 서버 기록을 중복 없이 최신순으로 병합하는 헬퍼 함수
 const mergeHistoryLists = (listA: any[], listB: any[]) => {
   const map = new Map<string, any>();
   [...listA, ...listB].forEach((item) => {
@@ -169,10 +168,7 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [markedDates, setMarkedDates] = useState<any>({});
 
-  // 하단 메인 네비게이션 탭
   const [mainTab, setMainTab] = useState<'calendar' | 'dday' | 'activity' | 'settings'>('calendar');
-
-  // 캘린더 필터 ('ALL' | 'TOGETHER' | 'HAE' | 'DAWON')
   const [calendarFilter, setCalendarFilter] = useState<'ALL' | 'TOGETHER' | 'HAE' | 'DAWON'>('ALL');
 
   const [haeOverrides, setHaeOverrides] = useState<any>({});
@@ -224,7 +220,6 @@ export default function App() {
 
   const coupleDaysCount = Math.floor((new Date(todayStr + 'T00:00:00Z').getTime() - COUPLE_START_DATE.getTime()) / 86400000) + 1;
 
-  // ☁️ 통합 메모 이력을 Supabase DB에 저장하여 모든 기기와 공유
   const syncHistoryToSupabase = async (historyArray: any[]) => {
     try {
       const payload = {
@@ -241,7 +236,6 @@ export default function App() {
     }
   };
 
-  // 📝 공용/해/다원 메모 변경사항을 한 번에 감지하여 클라우드 이력에 기록
   const recordMemoChangesBatch = (
     targetDate: string,
     changes: { tab: string; oldText: string; newText: string }[]
@@ -401,7 +395,6 @@ export default function App() {
       let remoteHist: any[] = [];
 
       data.forEach((row) => {
-        // ☁️ 공용 히스토리 전용 행인 경우 파싱하여 불러오기
         if (row.date === HISTORY_SYNC_DATE) {
           if (row.memo) {
             try {
@@ -425,7 +418,6 @@ export default function App() {
       setHaeMemos(hMemoMap);
       setDawonMemos(dMemoMap);
 
-      // 기기에 남아있던 로컬 이력과 클라우드 이력을 병합하여 동기화
       const mergedHist = mergeHistoryLists(remoteHist, localHist);
       setMemoHistory(mergedHist);
       AsyncStorage.setItem('@memo_history', JSON.stringify(mergedHist)).catch(() => {});
@@ -448,7 +440,6 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'couple_calendar' }, (payload) => {
         const newRow = payload.new as any;
         if (newRow && newRow.date) {
-          // ☁️ 다른 기기(여자친구 폰/PC 등)에서 메모 이력을 업데이트하면 즉시 반영
           if (newRow.date === HISTORY_SYNC_DATE) {
             if (newRow.memo) {
               try {
@@ -824,20 +815,21 @@ export default function App() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <View style={styles.webContainer}>
+        {/* 상단 안전 영역 쿠션 (아이폰 상단 다이나믹 아일랜드 및 시스템 블러 침범 완벽 방지) */}
+        <View style={[styles.topSafeCushion, { backgroundColor: theme.card }]} />
+
         {/* 상단 헤더 */}
         <View style={[styles.topHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-          <View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={[styles.brandTitle, { color: theme.text }]}>해 & 다원</Text>
-              <View style={[styles.couplePill, { backgroundColor: theme.accentSoft }]}>
-                <Text style={[styles.couplePillText, { color: theme.accent }]}>♥ {coupleDaysCount}일째</Text>
-              </View>
-              {dDayText ? (
-                <View style={[styles.couplePill, { backgroundColor: theme.primarySoft }]}>
-                  <Text style={[styles.couplePillText, { color: theme.primary }]}>{dDayText}</Text>
-                </View>
-              ) : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
+            <Text style={[styles.brandTitle, { color: theme.text }]}>해 & 다원</Text>
+            <View style={[styles.couplePill, { backgroundColor: theme.accentSoft }]}>
+              <Text style={[styles.couplePillText, { color: theme.accent }]}>♥ {coupleDaysCount}일째</Text>
             </View>
+            {dDayText ? (
+              <View style={[styles.couplePill, { backgroundColor: theme.primarySoft }]}>
+                <Text style={[styles.couplePillText, { color: theme.primary }]}>{dDayText}</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -864,34 +856,37 @@ export default function App() {
         {/* 탭 1: 메인 캘린더 */}
         {mainTab === 'calendar' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.filterBarWrapper}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-                {[
-                  { id: 'ALL', label: '전체 보기' },
-                  { id: 'TOGETHER', label: `💕 겹휴무·데이트 (${monthlyStats.doubleOffCount})` },
-                  { id: 'HAE', label: '☀️ 해 근무' },
-                  { id: 'DAWON', label: '🌙 다원 근무' },
-                ].map((f) => {
-                  const active = calendarFilter === f.id;
-                  return (
-                    <TouchableOpacity
-                      key={f.id}
-                      onPress={() => setCalendarFilter(f.id as any)}
-                      style={[
-                        styles.filterChip,
-                        {
-                          backgroundColor: active ? theme.text : theme.card,
-                          borderColor: active ? theme.text : theme.border,
-                        },
-                      ]}
+            {/* 4개 필터 버튼이 잘리지 않고 한 줄에 균형 있게 들어가는 필터 바 */}
+            <View style={styles.filterBarRow}>
+              {[
+                { id: 'ALL', label: '전체 보기' },
+                { id: 'TOGETHER', label: `💕 겹휴무·데이트(${monthlyStats.doubleOffCount})` },
+                { id: 'HAE', label: '☀️ 해 근무' },
+                { id: 'DAWON', label: '🌙 다원 근무' },
+              ].map((f) => {
+                const active = calendarFilter === f.id;
+                return (
+                  <TouchableOpacity
+                    key={f.id}
+                    onPress={() => setCalendarFilter(f.id as any)}
+                    style={[
+                      styles.filterChip,
+                      {
+                        backgroundColor: active ? theme.text : theme.card,
+                        borderColor: active ? theme.text : theme.border,
+                      },
+                    ]}
+                    activeOpacity={0.75}
+                  >
+                    <Text
+                      style={{ fontSize: 11, fontWeight: '700', color: active ? theme.card : theme.subText }}
+                      numberOfLines={1}
                     >
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: active ? theme.card : theme.subText }}>
-                        {f.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                      {f.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <View style={[styles.calendarCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -921,11 +916,27 @@ export default function App() {
                   textSectionTitleColor: theme.subText,
                   monthTextColor: theme.text,
                   textMonthFontWeight: '800',
-                  textMonthFontSize: 17,
+                  textMonthFontSize: 16,
                   arrowColor: theme.text,
+                  'stylesheet.calendar.header': {
+                    header: {
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      paddingLeft: 10,
+                      paddingRight: 10,
+                      marginTop: 4,
+                      alignItems: 'center',
+                    },
+                    week: {
+                      marginTop: 4,
+                      flexDirection: 'row',
+                      justifyContent: 'space-around',
+                      paddingBottom: 4,
+                    },
+                  },
                   'stylesheet.calendar.main': {
                     container: { paddingLeft: 4, paddingRight: 4 },
-                    week: { marginTop: 2, marginBottom: 2, flexDirection: 'row', justifyContent: 'space-around' },
+                    week: { marginTop: 1, marginBottom: 1, flexDirection: 'row', justifyContent: 'space-around' },
                   },
                 }}
                 dayComponent={({ date, state }: any) => {
@@ -1045,23 +1056,23 @@ export default function App() {
               />
             </View>
 
-            {/* 선택한 날짜 하단 상세 브리핑 카드 */}
+            {/* 선택한 날짜 하단 상세 브리핑 카드 (한 화면 안에 쏙 들어오도록 컴팩트화) */}
             <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <View style={styles.detailHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <Text style={[styles.detailDateTitle, { color: theme.text }]}>
                     {formatKoreanDate(selectedDate)}
                   </Text>
                   {holidays[selectedDate] && (
                     <View style={[styles.tagBadge, { backgroundColor: '#FEE2E2' }]}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#DC2626' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#DC2626' }}>
                         {holidays[selectedDate]}
                       </Text>
                     </View>
                   )}
                   {selectedMarking.annivText && (
                     <View style={[styles.tagBadge, { backgroundColor: theme.accentSoft }]}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: theme.accent }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: theme.accent }}>
                         {selectedMarking.annivText}
                       </Text>
                     </View>
@@ -1091,7 +1102,7 @@ export default function App() {
                       </View>
                     )}
                     {currentHaeShift?.ot ? (
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: theme.primary }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: theme.primary }}>
                         +{currentHaeShift.ot}시간 OT
                       </Text>
                     ) : null}
@@ -1111,10 +1122,10 @@ export default function App() {
                         </Text>
                       </View>
                     ) : (
-                      <Text style={{ fontSize: 12, color: theme.subText, fontWeight: '600' }}>미입력 (터치하여 등록)</Text>
+                      <Text style={{ fontSize: 11, color: theme.subText, fontWeight: '600' }}>미입력 (터치)</Text>
                     )}
                     {currentDawonShift?.ot ? (
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: theme.primary }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: theme.primary }}>
                         +{currentDawonShift.ot}시간 OT
                       </Text>
                     ) : null}
@@ -1124,7 +1135,7 @@ export default function App() {
 
               {selectedWeather && (
                 <View style={[styles.weatherBanner, { backgroundColor: theme.cardSub, borderColor: theme.border }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                     <Text style={{ fontSize: 12, fontWeight: '800', color: theme.text }}>
                       {selectedWeather.icon} {selectedWeather.label} · 최고 {selectedWeather.maxTemp}° / 최저 {selectedWeather.minTemp}°
                     </Text>
@@ -1139,12 +1150,12 @@ export default function App() {
                     </Text>
                   </View>
                   {currentHaeShift && (
-                    <Text style={{ fontSize: 11, color: theme.subText, marginTop: 2 }}>
+                    <Text style={{ fontSize: 11, color: theme.subText, marginTop: 1 }}>
                       • {getShiftCommuteBriefing('해', currentHaeShift, selectedWeather)}
                     </Text>
                   )}
                   {currentDawonShift && (
-                    <Text style={{ fontSize: 11, color: theme.subText, marginTop: 2 }}>
+                    <Text style={{ fontSize: 11, color: theme.subText, marginTop: 1 }}>
                       • {getShiftCommuteBriefing('다원', currentDawonShift, selectedWeather)}
                     </Text>
                   )}
@@ -1156,22 +1167,22 @@ export default function App() {
                 style={[styles.memoPreviewBox, { backgroundColor: theme.cardSub, borderColor: theme.border }]}
               >
                 {selectedMarking.memo || selectedMarking.hMemo || selectedMarking.dMemo ? (
-                  <View style={{ gap: 4 }}>
+                  <View style={{ gap: 3 }}>
                     {selectedMarking.memo ? (
-                      <Text style={{ fontSize: 13, color: theme.text, fontWeight: '600' }}>
+                      <Text style={{ fontSize: 12, color: theme.text, fontWeight: '600' }}>
                         💬 공용: {selectedMarking.memo}
                       </Text>
                     ) : null}
                     {selectedMarking.hMemo ? (
-                      <Text style={{ fontSize: 12, color: theme.subText }}>☀️ 해: {selectedMarking.hMemo}</Text>
+                      <Text style={{ fontSize: 11, color: theme.subText }}>☀️ 해: {selectedMarking.hMemo}</Text>
                     ) : null}
                     {selectedMarking.dMemo ? (
-                      <Text style={{ fontSize: 12, color: theme.subText }}>🌙 다원: {selectedMarking.dMemo}</Text>
+                      <Text style={{ fontSize: 11, color: theme.subText }}>🌙 다원: {selectedMarking.dMemo}</Text>
                     ) : null}
                   </View>
                 ) : (
-                  <Text style={{ fontSize: 12, color: theme.subText }}>
-                    등록된 일정이나 메모가 없습니다. 터치하여 데이트나 메모를 남겨보세요.
+                  <Text style={{ fontSize: 11, color: theme.subText }}>
+                    등록된 메모가 없습니다. 터치하여 데이트나 메모를 남겨보세요.
                   </Text>
                 )}
               </TouchableOpacity>
@@ -1239,9 +1250,7 @@ export default function App() {
           </ScrollView>
         )}
 
-        {/* ==========================================
-            탭 3: 모든 기기 실시간 공유 기록 탭 (개선 완료)
-        ========================================== */}
+        {/* 탭 3: 모든 기기 실시간 공유 기록 탭 */}
         {mainTab === 'activity' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -1254,7 +1263,7 @@ export default function App() {
                 </View>
               </View>
               <Text style={{ fontSize: 11, color: theme.subText, marginBottom: 14 }}>
-                핸드폰·PC 어디서든 해와 다원이 작성·수정·삭제한 메모 내역이 모든 기기에 동일하게 표시됩니다. (항목 터치 시 해당 날짜로 이동)
+                핸드폰·PC 어디서든 해와 다원이 작성·수정·삭제한 메모 내역이 모든 기기에 동일하게 표시됩니다.
               </Text>
 
               {memoHistory.length === 0 ? (
@@ -1305,7 +1314,6 @@ export default function App() {
                           </View>
                         </View>
 
-                        {/* 작성 / 수정 전후 / 삭제 원문 상세 표시 */}
                         {isAdd && (
                           <View style={[styles.historyContentBox, { backgroundColor: theme.cardSub }]}>
                             <Text style={{ color: theme.text, fontSize: 13, fontWeight: '600' }}>{log.content}</Text>
@@ -1407,7 +1415,7 @@ export default function App() {
           </ScrollView>
         )}
 
-        {/* 하단 탭 바 */}
+        {/* 하단 탭 바 (바닥에 붙지 않도록 넉넉한 하단 홈바 안전 여백 부여) */}
         <View style={[styles.bottomTabBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
           {[
             { id: 'calendar', icon: '📅', label: '캘린더' },
@@ -1420,16 +1428,19 @@ export default function App() {
               <TouchableOpacity
                 key={tab.id}
                 onPress={() => setMainTab(tab.id as any)}
-                style={styles.bottomTabItem}
+                style={[
+                  styles.bottomTabItem,
+                  active && { backgroundColor: theme.cardSub, borderRadius: 14 },
+                ]}
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 16, opacity: active ? 1 : 0.45 }}>{tab.icon}</Text>
+                <Text style={{ fontSize: 17, opacity: active ? 1 : 0.45 }}>{tab.icon}</Text>
                 <Text
                   style={{
                     fontSize: 11,
                     fontWeight: active ? '800' : '600',
                     color: active ? theme.text : theme.subText,
-                    marginTop: 2,
+                    marginTop: 3,
                   }}
                 >
                   {tab.label}
@@ -1614,7 +1625,7 @@ export default function App() {
                 multiline={true}
               />
 
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 6, marginBottom: 14 }}>
                 <TouchableOpacity
                   style={[styles.sheetSecondaryBtn, { borderColor: theme.border }]}
                   onPress={() => {
@@ -1790,56 +1801,71 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   webContainer: { flex: 1, width: '100%', maxWidth: 500, alignSelf: 'center' },
+  // 상단 다이나믹 아일랜드 및 블러 영역을 피하기 위한 안전 여백 쿠션
+  topSafeCushion: {
+    height: Platform.OS === 'web' ? 44 : 12,
+    width: '100%',
+  },
   topHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  brandTitle: { fontSize: 19, fontWeight: '900', letterSpacing: -0.4 },
+  brandTitle: { fontSize: 18, fontWeight: '900', letterSpacing: -0.4 },
   couplePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
   couplePillText: { fontSize: 11, fontWeight: '800' },
   topActionBtn: {
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 10,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollContent: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 30 },
-  filterBarWrapper: { marginBottom: 10 },
-  filterScroll: { gap: 8, paddingRight: 10 },
+  scrollContent: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 24 },
+  // 4개 필터 칩이 잘리지 않고 한 줄에 들어오도록 균등 배치
+  filterBarRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 8,
+  },
   filterChip: {
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 16,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   calendarCard: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
-    paddingBottom: 10,
+    paddingBottom: 6,
     overflow: 'hidden',
   },
   legendBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderBottomWidth: 1,
   },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendDot: { width: 7, height: 7, borderRadius: 3.5 },
   calendar: { width: '100%' },
+  // 달력 셀 높이를 60 -> 52로 슬림화하여 하단 브리핑 카드 공간 확보
   dayCell: {
-    height: 60,
+    height: 52,
     width: '96%',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 4,
+    paddingVertical: 3,
     paddingHorizontal: 2,
   },
   cellTopRow: {
@@ -1850,17 +1876,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   dateNumBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 19,
+    height: 19,
+    borderRadius: 9.5,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  dayNumber: { fontSize: 12 },
+  dayNumber: { fontSize: 11 },
   miniDotRow: { width: 8, alignItems: 'flex-end' },
-  miniDot: { width: 5, height: 5, borderRadius: 2.5 },
-  annivRow: { height: 11, justifyContent: 'center', alignItems: 'center', width: '100%' },
-  microLabel: { fontSize: 8, fontWeight: '700' },
+  miniDot: { width: 4.5, height: 4.5, borderRadius: 2.25 },
+  annivRow: { height: 10, justifyContent: 'center', alignItems: 'center', width: '100%' },
+  microLabel: { fontSize: 7.5, fontWeight: '700' },
   dualShiftContainer: {
     flexDirection: 'row',
     width: '100%',
@@ -1869,57 +1895,57 @@ const styles = StyleSheet.create({
   },
   shiftPill: {
     flex: 1,
-    height: 16,
-    borderRadius: 5,
+    height: 15,
+    borderRadius: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
   shiftPillEmpty: {
     flex: 1,
-    height: 16,
-    borderRadius: 5,
+    height: 15,
+    borderRadius: 4,
   },
   shiftPillText: { fontSize: 8, fontWeight: '900' },
   detailCard: {
-    marginTop: 12,
-    borderRadius: 20,
+    marginTop: 10,
+    borderRadius: 18,
     borderWidth: 1,
-    padding: 16,
+    padding: 14,
   },
   detailHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  detailDateTitle: { fontSize: 16, fontWeight: '800' },
-  tagBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  editTriggerBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
-  personGrid: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  personCard: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  MiniBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  weatherBanner: {
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
     marginBottom: 10,
   },
+  detailDateTitle: { fontSize: 15, fontWeight: '800' },
+  tagBadge: { paddingHorizontal: 7, paddingVertical: 2.5, borderRadius: 7 },
+  editTriggerBtn: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 9 },
+  personGrid: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  personCard: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  MiniBadge: { paddingHorizontal: 7, paddingVertical: 2.5, borderRadius: 6 },
+  weatherBanner: {
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
   memoPreviewBox: {
-    padding: 12,
-    borderRadius: 14,
+    padding: 10,
+    borderRadius: 12,
     borderWidth: 1,
   },
   heroBanner: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
-    padding: 20,
+    padding: 18,
   },
-  sectionHeaderTitle: { fontSize: 16, fontWeight: '800', marginBottom: 10 },
+  sectionHeaderTitle: { fontSize: 15, fontWeight: '800', marginBottom: 10 },
   milestoneRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1941,13 +1967,21 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
   },
+  // 하단 홈 인디케이터(가로줄)와 겹치지 않도록 하단 여백을 28px로 넉넉하게 확보
   bottomTabBar: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    paddingVertical: 8,
-    paddingBottom: Platform.OS === 'ios' ? 16 : 10,
+    paddingTop: 8,
+    paddingBottom: 28,
+    paddingHorizontal: 10,
+    gap: 6,
   },
-  bottomTabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  bottomTabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+  },
   sheetOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -1960,6 +1994,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
+    paddingBottom: 32,
     maxHeight: '88%',
   },
   sheetHandle: {
