@@ -29,6 +29,9 @@ LocaleConfig.defaultLocale = 'kr';
 const CYCLE_BASE_DATE = new Date('2026-09-08T00:00:00Z');
 const COUPLE_START_DATE = new Date('2026-06-26T00:00:00Z');
 
+// ☁️ 모든 기기 간 메모 수정/삭제 이력을 실시간 공유하기 위한 DB 전용 키
+const HISTORY_SYNC_DATE = '1970-01-01';
+
 // 급여 계산 상수 (통상시급 13,800원 기준)
 const BASE_PAY = 2808400;
 const HOURLY_WAGE = 13800;
@@ -144,6 +147,21 @@ const formatKoreanDate = (dateStr: string) => {
   return `${Number(parts[1])}월 ${Number(parts[2])}일 (${dayNames[d.getUTCDay()]})`;
 };
 
+// 로컬 기록과 서버 기록을 중복 없이 최신순으로 병합하는 헬퍼 함수
+const mergeHistoryLists = (listA: any[], listB: any[]) => {
+  const map = new Map<string, any>();
+  [...listA, ...listB].forEach((item) => {
+    if (!item || !item.targetDate) return;
+    const key = item.id || `${item.timestamp}_${item.targetDate}_${item.tab}_${item.type}`;
+    if (!map.has(key)) {
+      map.set(key, { ...item, id: key });
+    }
+  });
+  return Array.from(map.values())
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+    .slice(0, 150);
+};
+
 export default function App() {
   const todayStr = getTodayString();
 
@@ -151,10 +169,10 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [markedDates, setMarkedDates] = useState<any>({});
 
-  // 하단 메인 네비게이션 탭 ('calendar' | 'dday' | 'activity' | 'settings')
+  // 하단 메인 네비게이션 탭
   const [mainTab, setMainTab] = useState<'calendar' | 'dday' | 'activity' | 'settings'>('calendar');
 
-  // 끼리(kkiri) 스타일 캘린더 필터 ('ALL' | 'TOGETHER' | 'HAE' | 'DAWON')
+  // 캘린더 필터 ('ALL' | 'TOGETHER' | 'HAE' | 'DAWON')
   const [calendarFilter, setCalendarFilter] = useState<'ALL' | 'TOGETHER' | 'HAE' | 'DAWON'>('ALL');
 
   const [haeOverrides, setHaeOverrides] = useState<any>({});
@@ -163,7 +181,6 @@ export default function App() {
   const [haeMemos, setHaeMemos] = useState<any>({});
   const [dawonMemos, setDawonMemos] = useState<any>({});
 
-  // 달력에서 현재 선택된 날짜 (기본값: 오늘) 및 편집 모달 상태
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [editModalVisible, setEditModalVisible] = useState(false);
 
@@ -179,7 +196,6 @@ export default function App() {
   const [holidays, setHolidays] = useState<Record<string, string>>(DEFAULT_HOLIDAYS);
   const [weatherMap, setWeatherMap] = useState<Record<string, any>>({});
 
-  // 아이폰 위젯 모달 및 급여 보안 모달 상태
   const [widgetModalVisible, setWidgetModalVisible] = useState(false);
   const [copiedWidgetUrl, setCopiedWidgetUrl] = useState(false);
 
@@ -192,7 +208,6 @@ export default function App() {
 
   const [calendarKey, setCalendarKey] = useState(0);
 
-  // 모던 엔터프라이즈 컬러 시스템 (Toss / TimeTree 감성)
   const theme = {
     bg: isDark ? '#0F1015' : '#F4F6F9',
     card: isDark ? '#181A20' : '#FFFFFF',
@@ -207,8 +222,63 @@ export default function App() {
     todayCircle: isDark ? '#F43F5E' : '#111827',
   };
 
-  // 사귄 일수 계산
   const coupleDaysCount = Math.floor((new Date(todayStr + 'T00:00:00Z').getTime() - COUPLE_START_DATE.getTime()) / 86400000) + 1;
+
+  // ☁️ 통합 메모 이력을 Supabase DB에 저장하여 모든 기기와 공유
+  const syncHistoryToSupabase = async (historyArray: any[]) => {
+    try {
+      const payload = {
+        date: HISTORY_SYNC_DATE,
+        hae_shift: null,
+        dawon_shift: null,
+        memo: JSON.stringify(historyArray.slice(0, 150)),
+        hae_memo: '',
+        dawon_memo: '',
+      };
+      await supabase.from('couple_calendar').upsert(payload, { onConflict: 'date' });
+    } catch (e) {
+      console.error('History cloud sync error:', e);
+    }
+  };
+
+  // 📝 공용/해/다원 메모 변경사항을 한 번에 감지하여 클라우드 이력에 기록
+  const recordMemoChangesBatch = (
+    targetDate: string,
+    changes: { tab: string; oldText: string; newText: string }[]
+  ) => {
+    const newLogs: any[] = [];
+    const baseTs = Date.now();
+
+    changes.forEach(({ tab, oldText, newText }, idx) => {
+      const oText = oldText?.trim() || '';
+      const nText = newText?.trim() || '';
+      if (oText === nText) return;
+
+      let type: 'ADD' | 'EDIT' | 'DELETE' = 'EDIT';
+      if (oText === '' && nText !== '') type = 'ADD';
+      if (oText !== '' && nText === '') type = 'DELETE';
+
+      const timestamp = baseTs + idx;
+      newLogs.push({
+        id: `${timestamp}_${Math.random().toString(36).substring(2, 7)}`,
+        timestamp,
+        targetDate,
+        tab,
+        type,
+        oldContent: oText,
+        content: type === 'DELETE' ? oText : nText,
+      });
+    });
+
+    if (newLogs.length === 0) return;
+
+    setMemoHistory((prev) => {
+      const updated = mergeHistoryLists(newLogs, prev);
+      AsyncStorage.setItem('@memo_history', JSON.stringify(updated)).catch(() => {});
+      syncHistoryToSupabase(updated);
+      return updated;
+    });
+  };
 
   const fetchWeatherData = useCallback(async () => {
     try {
@@ -302,45 +372,23 @@ export default function App() {
     } catch {}
   }, []);
 
-  const loadHistory = async () => {
-    try {
-      const hist = await AsyncStorage.getItem('@memo_history');
-      if (hist) setMemoHistory(JSON.parse(hist));
-    } catch (e) {}
-  };
-
-  const logMemoChange = async (targetDate: string, tab: string, oldText: string, newText: string) => {
-    const oText = oldText?.trim() || '';
-    const nText = newText?.trim() || '';
-    if (oText === nText) return;
-
-    let type = 'EDIT';
-    if (oText === '' && nText !== '') type = 'ADD';
-    if (oText !== '' && nText === '') type = 'DELETE';
-
-    const timestamp = Date.now();
-    const log = {
-      id: timestamp.toString() + Math.random().toString(36).substring(2, 7),
-      timestamp,
-      targetDate,
-      tab,
-      type,
-      content: type === 'DELETE' ? '' : nText,
-    };
-
-    setMemoHistory((prev) => {
-      const updated = [log, ...prev].slice(0, 100);
-      AsyncStorage.setItem('@memo_history', JSON.stringify(updated));
-      return updated;
-    });
-  };
-
   const fetchCalendarData = async (isInit = false) => {
     if (!isInit) setIsRefreshing(true);
 
+    let localHist: any[] = [];
+    try {
+      const rawLocal = await AsyncStorage.getItem('@memo_history');
+      if (rawLocal) {
+        const parsed = JSON.parse(rawLocal);
+        if (Array.isArray(parsed)) localHist = parsed;
+      }
+    } catch {}
+
     const { data, error } = await supabase.from('couple_calendar').select('*');
     if (error) {
+      if (localHist.length > 0) setMemoHistory(localHist);
       if (!isInit) setIsRefreshing(false);
+      else setIsLoading(false);
       return;
     }
 
@@ -350,19 +398,40 @@ export default function App() {
       const memoMap: any = {};
       const hMemoMap: any = {};
       const dMemoMap: any = {};
+      let remoteHist: any[] = [];
 
       data.forEach((row) => {
+        // ☁️ 공용 히스토리 전용 행인 경우 파싱하여 불러오기
+        if (row.date === HISTORY_SYNC_DATE) {
+          if (row.memo) {
+            try {
+              const parsed = JSON.parse(row.memo);
+              if (Array.isArray(parsed)) remoteHist = parsed;
+            } catch {}
+          }
+          return;
+        }
+
         if (row.hae_shift) hOver[row.date] = row.hae_shift;
         if (row.dawon_shift) dOver[row.date] = row.dawon_shift;
         if (row.memo) memoMap[row.date] = row.memo;
         if (row.hae_memo) hMemoMap[row.date] = row.hae_memo;
         if (row.dawon_memo) dMemoMap[row.date] = row.dawon_memo;
       });
+
       setHaeOverrides(hOver);
       setDawonOverrides(dOver);
       setMemos(memoMap);
       setHaeMemos(hMemoMap);
       setDawonMemos(dMemoMap);
+
+      // 기기에 남아있던 로컬 이력과 클라우드 이력을 병합하여 동기화
+      const mergedHist = mergeHistoryLists(remoteHist, localHist);
+      setMemoHistory(mergedHist);
+      AsyncStorage.setItem('@memo_history', JSON.stringify(mergedHist)).catch(() => {});
+      if (mergedHist.length > remoteHist.length) {
+        syncHistoryToSupabase(mergedHist);
+      }
     }
 
     if (isInit) setIsLoading(false);
@@ -371,7 +440,6 @@ export default function App() {
 
   useEffect(() => {
     fetchCalendarData(true);
-    loadHistory();
     fetchWeatherData();
     syncHolidaysFromAPI(todayStr.slice(0, 4));
 
@@ -380,6 +448,23 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'couple_calendar' }, (payload) => {
         const newRow = payload.new as any;
         if (newRow && newRow.date) {
+          // ☁️ 다른 기기(여자친구 폰/PC 등)에서 메모 이력을 업데이트하면 즉시 반영
+          if (newRow.date === HISTORY_SYNC_DATE) {
+            if (newRow.memo) {
+              try {
+                const incoming = JSON.parse(newRow.memo);
+                if (Array.isArray(incoming)) {
+                  setMemoHistory((prev) => {
+                    const merged = mergeHistoryLists(incoming, prev);
+                    AsyncStorage.setItem('@memo_history', JSON.stringify(merged)).catch(() => {});
+                    return merged;
+                  });
+                }
+              } catch {}
+            }
+            return;
+          }
+
           setHaeOverrides((prev: any) => ({ ...prev, [newRow.date]: newRow.hae_shift }));
           setDawonOverrides((prev: any) => ({ ...prev, [newRow.date]: newRow.dawon_shift }));
           setMemos((prev: any) => ({ ...prev, [newRow.date]: newRow.memo }));
@@ -468,7 +553,6 @@ export default function App() {
     await syncHolidaysFromAPI(currentViewYearMonth.slice(0, 4));
   };
 
-  // 날짜 터치 시 하단 브리핑 카드만 즉시 갱신 (팝업 피로도 제거)
   const onSelectDay = (dateString: string) => {
     setSelectedDate(dateString);
     setMemoInput(memos[dateString] || '');
@@ -476,7 +560,6 @@ export default function App() {
     setDawonMemoInput(dawonMemos[dateString] || '');
   };
 
-  // 편집 바텀시트 열기
   const openEditSheet = (targetDate?: string) => {
     const d = targetDate || selectedDate;
     setSelectedDate(d);
@@ -496,9 +579,11 @@ export default function App() {
   const closeModalAndSave = () => {
     setEditModalVisible(false);
 
-    logMemoChange(selectedDate, '공용', memos[selectedDate], memoInput);
-    logMemoChange(selectedDate, '해', haeMemos[selectedDate], haeMemoInput);
-    logMemoChange(selectedDate, '다원', dawonMemos[selectedDate], dawonMemoInput);
+    recordMemoChangesBatch(selectedDate, [
+      { tab: '공용', oldText: memos[selectedDate], newText: memoInput },
+      { tab: '해', oldText: haeMemos[selectedDate], newText: haeMemoInput },
+      { tab: '다원', oldText: dawonMemos[selectedDate], newText: dawonMemoInput },
+    ]);
 
     const newMemos = { ...memos };
     const newHaeMemos = { ...haeMemos };
@@ -518,9 +603,11 @@ export default function App() {
   };
 
   const navigateDate = (direction: 'prev' | 'next') => {
-    logMemoChange(selectedDate, '공용', memos[selectedDate], memoInput);
-    logMemoChange(selectedDate, '해', haeMemos[selectedDate], haeMemoInput);
-    logMemoChange(selectedDate, '다원', dawonMemos[selectedDate], dawonMemoInput);
+    recordMemoChangesBatch(selectedDate, [
+      { tab: '공용', oldText: memos[selectedDate], newText: memoInput },
+      { tab: '해', oldText: haeMemos[selectedDate], newText: haeMemoInput },
+      { tab: '다원', oldText: dawonMemos[selectedDate], newText: dawonMemoInput },
+    ]);
 
     const newMemos = { ...memos };
     const newHaeMemos = { ...haeMemos };
@@ -632,7 +719,6 @@ export default function App() {
     }
   };
 
-  // 월간 통계 및 급여 계산
   const calculateMonthlyStats = () => {
     let normalNightCount = 0;
     let holidayNightCount = 0;
@@ -707,7 +793,6 @@ export default function App() {
     setCalendarKey((prev) => prev + 1);
   };
 
-  // 다가오는 기념일/데이트 리스트 추출 (끼리 D-Day 탭용)
   const getUpcomingMilestones = () => {
     const list: { date: string; title: string; diff: number; tag: string }[] = [];
     Object.keys(markedDates).forEach((dateStr) => {
@@ -739,9 +824,7 @@ export default function App() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <View style={styles.webContainer}>
-        {/* ==========================================
-            상단 모던 헤더 (군더더기 이모지 제거)
-        ========================================== */}
+        {/* 상단 헤더 */}
         <View style={[styles.topHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -778,12 +861,9 @@ export default function App() {
           </View>
         </View>
 
-        {/* ==========================================
-            탭 1: 메인 캘린더 뷰 (끼리 필터 + 마스터/디테일)
-        ========================================== */}
+        {/* 탭 1: 메인 캘린더 */}
         {mainTab === 'calendar' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* 끼리(kkiri) 스타일 필터 칩 & 미니 요약 */}
             <View style={styles.filterBarWrapper}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
                 {[
@@ -814,9 +894,7 @@ export default function App() {
               </ScrollView>
             </View>
 
-            {/* 메인 캘린더 카드 */}
             <View style={[styles.calendarCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              {/* 상단 미니멀 범례 */}
               <View style={[styles.legendBar, { borderBottomColor: theme.border }]}>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>좌: 해 / 우: 다원</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -861,7 +939,6 @@ export default function App() {
                   const isHoliday = holidays[dateStr];
                   const dayWeather = weatherMap[dateStr];
 
-                  // 필터 적용 시 흐리게 처리할지 판별
                   const isDimmedByFilter =
                     calendarFilter === 'TOGETHER' && !isDoubleOff && !isDateDay && !marking.annivText;
 
@@ -876,7 +953,6 @@ export default function App() {
                       onPress={() => onSelectDay(dateStr)}
                       activeOpacity={0.65}
                     >
-                      {/* 상단 날짜 숫자 + 날씨/메모 인디케이터 */}
                       <View style={styles.cellTopRow}>
                         {dayWeather && !isDisabled ? (
                           <Text style={{ fontSize: 8 }}>{dayWeather.icon}</Text>
@@ -884,12 +960,7 @@ export default function App() {
                           <View style={{ width: 8 }} />
                         )}
 
-                        <View
-                          style={[
-                            styles.dateNumBadge,
-                            isToday && { backgroundColor: theme.todayCircle },
-                          ]}
-                        >
+                        <View style={[styles.dateNumBadge, isToday && { backgroundColor: theme.todayCircle }]}>
                           <Text
                             style={[
                               styles.dayNumber,
@@ -921,7 +992,6 @@ export default function App() {
                         </View>
                       </View>
 
-                      {/* 기념일 / 공휴일 라벨 */}
                       <View style={styles.annivRow}>
                         {marking.annivText ? (
                           <Text style={[styles.microLabel, { color: theme.accent }]} numberOfLines={1}>
@@ -934,7 +1004,6 @@ export default function App() {
                         ) : null}
                       </View>
 
-                      {/* 깔끔한 캡슐형 듀얼 근무 배지 ('해/다원' 반복 텍스트 제거) */}
                       <View style={[styles.dualShiftContainer, isDisabled && { opacity: 0.3 }]}>
                         {calendarFilter !== 'DAWON' && marking.haeShift ? (
                           <View
@@ -976,9 +1045,7 @@ export default function App() {
               />
             </View>
 
-            {/* ==========================================
-                선택한 날짜의 하단 마스터-디테일 브리핑 카드
-            ========================================== */}
+            {/* 선택한 날짜 하단 상세 브리핑 카드 */}
             <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <View style={styles.detailHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1009,7 +1076,6 @@ export default function App() {
                 </TouchableOpacity>
               </View>
 
-              {/* 해 & 다원 근무 요약 박스 */}
               <View style={styles.personGrid}>
                 <TouchableOpacity
                   onPress={() => openEditSheet(selectedDate)}
@@ -1056,7 +1122,6 @@ export default function App() {
                 </TouchableOpacity>
               </View>
 
-              {/* 출퇴근 시간대 핀셋 날씨 브리핑 */}
               {selectedWeather && (
                 <View style={[styles.weatherBanner, { backgroundColor: theme.cardSub, borderColor: theme.border }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -1086,7 +1151,6 @@ export default function App() {
                 </View>
               )}
 
-              {/* 메모 프리뷰 영역 */}
               <TouchableOpacity
                 onPress={() => openEditSheet(selectedDate)}
                 style={[styles.memoPreviewBox, { backgroundColor: theme.cardSub, borderColor: theme.border }]}
@@ -1115,9 +1179,7 @@ export default function App() {
           </ScrollView>
         )}
 
-        {/* ==========================================
-            탭 2: 데이트·디데이 라운지 (끼리 Kkiri 감성)
-        ========================================== */}
+        {/* 탭 2: 데이트·디데이 라운지 */}
         {mainTab === 'dday' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={[styles.heroBanner, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -1178,50 +1240,112 @@ export default function App() {
         )}
 
         {/* ==========================================
-            탭 3: 타임라인 (메모 수정 이력 피드)
+            탭 3: 모든 기기 실시간 공유 기록 탭 (개선 완료)
         ========================================== */}
         {mainTab === 'activity' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <Text style={[styles.sectionHeaderTitle, { color: theme.text }]}>🕒 최근 메모 변경 타임라인</Text>
-              <Text style={{ fontSize: 11, color: theme.subText, marginBottom: 12 }}>
-                현재 기기에서 추가·수정·삭제한 메모 기록입니다.
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={[styles.sectionHeaderTitle, { color: theme.text, marginBottom: 0 }]}>
+                  🕒 우리 둘의 메모 변경 기록
+                </Text>
+                <View style={[styles.couplePill, { backgroundColor: theme.primarySoft }]}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: theme.primary }}>☁️ 실시간 공유 중</Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 11, color: theme.subText, marginBottom: 14 }}>
+                핸드폰·PC 어디서든 해와 다원이 작성·수정·삭제한 메모 내역이 모든 기기에 동일하게 표시됩니다. (항목 터치 시 해당 날짜로 이동)
               </Text>
+
               {memoHistory.length === 0 ? (
                 <Text style={{ color: theme.subText, textAlign: 'center', paddingVertical: 30, fontSize: 13 }}>
                   아직 기록된 메모 변경 이력이 없습니다.
                 </Text>
               ) : (
-                memoHistory.map((log) => (
-                  <View key={log.id} style={[styles.milestoneRow, { borderBottomColor: theme.border }]}>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: theme.primary }}>
-                          {log.targetDate} ({log.tab} 메모)
-                        </Text>
-                        <Text style={{ fontSize: 11, color: theme.subText }}>
-                          {log.type === 'ADD' ? '새로 작성' : log.type === 'EDIT' ? '수정됨' : '삭제됨'}
+                memoHistory.map((log) => {
+                  const isAdd = log.type === 'ADD';
+                  const isEdit = log.type === 'EDIT';
+                  const isDelete = log.type === 'DELETE';
+
+                  const badgeBg = isAdd
+                    ? theme.primarySoft
+                    : isEdit
+                    ? isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7'
+                    : theme.accentSoft;
+                  const badgeColor = isAdd ? theme.primary : isEdit ? '#D97706' : '#EF4444';
+                  const badgeLabel = isAdd ? '새로 작성' : isEdit ? '내용 수정' : '메모 삭제';
+
+                  return (
+                    <TouchableOpacity
+                      key={log.id}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        if (log.targetDate) {
+                          setSelectedDate(log.targetDate);
+                          setMainTab('calendar');
+                        }
+                      }}
+                      style={[styles.milestoneRow, { borderBottomColor: theme.border, alignItems: 'flex-start' }]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text }}>
+                              {formatKoreanDate(log.targetDate)}
+                            </Text>
+                            <View style={[styles.tagBadge, { backgroundColor: theme.cardSub }]}>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>
+                                {log.tab} 메모
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={[styles.tagBadge, { backgroundColor: badgeBg }]}>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: badgeColor }}>{badgeLabel}</Text>
+                          </View>
+                        </View>
+
+                        {/* 작성 / 수정 전후 / 삭제 원문 상세 표시 */}
+                        {isAdd && (
+                          <View style={[styles.historyContentBox, { backgroundColor: theme.cardSub }]}>
+                            <Text style={{ color: theme.text, fontSize: 13, fontWeight: '600' }}>{log.content}</Text>
+                          </View>
+                        )}
+
+                        {isEdit && (
+                          <View style={[styles.historyContentBox, { backgroundColor: theme.cardSub, gap: 4 }]}>
+                            {log.oldContent ? (
+                              <Text style={{ color: theme.subText, fontSize: 12, textDecorationLine: 'line-through' }}>
+                                이전: {log.oldContent}
+                              </Text>
+                            ) : null}
+                            <Text style={{ color: theme.text, fontSize: 13, fontWeight: '700' }}>
+                              변경: {log.content}
+                            </Text>
+                          </View>
+                        )}
+
+                        {isDelete && (
+                          <View style={[styles.historyContentBox, { backgroundColor: theme.accentSoft }]}>
+                            <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '700' }}>
+                              🗑️ 삭제된 내용: {log.oldContent || log.content || '(내용 없음)'}
+                            </Text>
+                          </View>
+                        )}
+
+                        <Text style={{ fontSize: 10, color: theme.subText, marginTop: 5, alignSelf: 'flex-end' }}>
+                          {formatDateTime(log.timestamp)}
                         </Text>
                       </View>
-                      {log.type === 'DELETE' ? (
-                        <Text style={{ color: '#EF4444', fontSize: 12 }}>🗑️ {formatDateTime(log.timestamp)}에 지워짐</Text>
-                      ) : (
-                        <Text style={{ color: theme.text, fontSize: 13, fontWeight: '500' }}>{log.content}</Text>
-                      )}
-                      <Text style={{ fontSize: 10, color: theme.subText, marginTop: 4 }}>
-                        {formatDateTime(log.timestamp)}
-                      </Text>
-                    </View>
-                  </View>
-                ))
+                    </TouchableOpacity>
+                  );
+                })
               )}
             </View>
           </ScrollView>
         )}
 
-        {/* ==========================================
-            탭 4: 관리·위젯 (위젯 연동, 다크모드, 급여 금고)
-        ========================================== */}
+        {/* 탭 4: 관리·위젯 */}
         {mainTab === 'settings' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -1264,7 +1388,7 @@ export default function App() {
                 <View>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text }}>🔄 데이터 및 기상청/공휴일 동기화</Text>
                   <Text style={{ fontSize: 12, color: theme.subText, marginTop: 2 }}>
-                    최신 DB 근무표와 14일 날씨를 즉시 새로고침합니다
+                    최신 DB 근무표, 공유 기록, 14일 날씨를 즉시 새로고침합니다
                   </Text>
                 </View>
                 <Text style={{ fontSize: 16, color: theme.subText }}>↻</Text>
@@ -1283,9 +1407,7 @@ export default function App() {
           </ScrollView>
         )}
 
-        {/* ==========================================
-            하단 탭 네비게이션 바 (Toss / Kkiri 스타일)
-        ========================================== */}
+        {/* 하단 탭 바 */}
         <View style={[styles.bottomTabBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
           {[
             { id: 'calendar', icon: '📅', label: '캘린더' },
@@ -1318,9 +1440,7 @@ export default function App() {
         </View>
       </View>
 
-      {/* ==========================================
-          바텀시트 모달 1: 날짜별 근무·OT·메모 편집
-      ========================================== */}
+      {/* 바텀시트 모달 1: 날짜별 근무·OT·메모 편집 */}
       <Modal visible={editModalVisible} transparent={true} animationType="slide" onRequestClose={closeModalAndSave}>
         <Pressable style={styles.sheetOverlay} onPress={closeModalAndSave}>
           <Pressable
@@ -1349,7 +1469,6 @@ export default function App() {
                 </TouchableOpacity>
               </View>
 
-              {/* 해의 근무 선택 */}
               <View style={[styles.editSectionBox, { backgroundColor: theme.cardSub, borderColor: theme.border }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text }}>
@@ -1401,7 +1520,6 @@ export default function App() {
                 </View>
               </View>
 
-              {/* 다원의 근무 선택 */}
               <View style={[styles.editSectionBox, { backgroundColor: theme.cardSub, borderColor: theme.border }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text }}>
@@ -1453,7 +1571,6 @@ export default function App() {
                 </View>
               </View>
 
-              {/* 메모 입력 탭 */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {(['공용', '해', '다원'] as const).map((tab) => {
@@ -1521,9 +1638,7 @@ export default function App() {
         </Pressable>
       </Modal>
 
-      {/* ==========================================
-          모달 2: 아이폰 위젯(.ics) 실시간 구독
-      ========================================== */}
+      {/* 모달 2: 아이폰 위젯(.ics) 실시간 구독 */}
       <Modal visible={widgetModalVisible} transparent={true} animationType="fade" onRequestClose={() => setWidgetModalVisible(false)}>
         <Pressable style={styles.sheetOverlay} onPress={() => setWidgetModalVisible(false)}>
           <Pressable style={[styles.centerModal, { backgroundColor: theme.card }]} onPress={(e) => e.stopPropagation()}>
@@ -1559,9 +1674,7 @@ export default function App() {
         </Pressable>
       </Modal>
 
-      {/* ==========================================
-          모달 3: 관리자 보안 급여 대시보드 (970045)
-      ========================================== */}
+      {/* 모달 3: 관리자 보안 급여 대시보드 (970045) */}
       <Modal visible={vaultModalVisible} transparent={true} animationType="fade" onRequestClose={closeVaultModal}>
         <Pressable style={styles.sheetOverlay} onPress={closeVaultModal}>
           <Pressable style={[styles.centerModal, { backgroundColor: theme.card }]} onPress={(e) => e.stopPropagation()}>
@@ -1813,6 +1926,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
+  },
+  historyContentBox: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    marginTop: 2,
   },
   ddayBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   settingItem: {
