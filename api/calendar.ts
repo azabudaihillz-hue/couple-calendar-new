@@ -1,6 +1,3 @@
-// api/calendar.ts
-// iOS 아이폰 잠금화면 & 기본 캘린더 실시간 구독용 (.ics 피드 생성기)
-
 export const config = {
   runtime: 'edge',
 };
@@ -28,62 +25,37 @@ const getCalculatedShift = (dateString: string) => {
   return HAE_SHIFTS.OFF;
 };
 
-const formatICSDate = (dateStr: string) => dateStr.replace(/-/g, '');
-
-const getNextDayICSDate = (dateStr: string) => {
-  const d = new Date(dateStr + 'T00:00:00Z');
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().split('T')[0].replace(/-/g, '');
-};
-
-// 💡 [핵심 해결] 텍스트 내의 줄바꿈(\n)이나 특수기호를 아이폰 캘린더 규격에 맞게 안전하게 변환
 const escapeICS = (text: string) => {
   if (!text) return '';
-  return text
-    .replace(/\\/g, '\\\\')
-    .replace(/[;,]/g, '\\$&')
-    .replace(/\r?\n/g, '\\n');
+  return text.replace(/\\/g, '\\\\').replace(/[;,]/g, '\\$&').replace(/\r?\n/g, '\\n');
 };
 
-// 달력 제목용 변환 (줄바꿈을 띄어쓰기로 변환)
 const escapeSummary = (text: string) => {
   if (!text) return '';
-  return text
-    .replace(/\r?\n/g, ' ')
-    .replace(/\\/g, '\\\\')
-    .replace(/[;,]/g, '\\$&');
+  return text.replace(/\r?\n/g, ' ').replace(/\\/g, '\\\\').replace(/[;,]/g, '\\$&');
 };
 
 export default async function handler(req: Request) {
   const url = new URL(req.url);
-  const supabaseUrl = url.searchParams.get('u') || process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-  const supabaseKey = url.searchParams.get('k') || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+  const supabaseUrl = url.searchParams.get('u') || '';
+  const supabaseKey = url.searchParams.get('k') || '';
 
   const overridesMap: Record<string, any> = {};
 
-  // Supabase 실시간 메모 조회
   if (supabaseUrl && supabaseKey) {
     try {
       const res = await fetch(`${supabaseUrl}/rest/v1/couple_calendar?select=*`, {
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-        },
+        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
       });
       if (res.ok) {
         const rows = await res.json();
         if (Array.isArray(rows)) {
-          rows.forEach((r) => {
-            if (r && r.date) overridesMap[r.date] = r;
-          });
+          rows.forEach((r) => { if (r && r.date) overridesMap[r.date] = r; });
         }
       }
-    } catch (e) {
-      console.error('Supabase fetch error in ICS:', e);
-    }
+    } catch (e) {}
   }
 
-  // 오늘 기준 30일 전부터 180일 후까지 (총 210일) 생성
   const now = new Date();
   const startBase = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 30));
   const events: string[] = [];
@@ -114,21 +86,24 @@ export default async function handler(req: Request) {
       summary = `📝${escapeSummary(memo)} ${summary}`;
     }
 
-    const descriptionLines = [
+    const descLines = [
       `해 근무: ${haeShift.label}${haeShift.ot ? ` + OT ${haeShift.ot}시간` : ''}`,
       `다원 근무: ${dawonShift ? dawonShift.label + (dawonShift.ot ? ` + OT ${dawonShift.ot}시간` : '') : '미입력'}`,
     ];
-    if (memo) descriptionLines.push(`공용 메모: ${escapeICS(memo)}`);
+    if (memo) descLines.push(`공용 메모: ${escapeICS(memo)}`);
 
+    const formattedDate = dateStr.replace(/-/g, '');
+    
     events.push(
       [
         'BEGIN:VEVENT',
         `UID:couple-cal-${dateStr}@couplecalendar.vercel.app`,
         `DTSTAMP:${dtStamp}`,
-        `DTSTART;VALUE=DATE:${formatICSDate(dateStr)}`,
-        `DTEND;VALUE=DATE:${getNextDayICSDate(dateStr)}`,
+        // ✨ 핵심 변경점: 하루 종일(VALUE=DATE) 대신 시간을 00:00~23:59로 꽉 채워서 아이폰 위젯에 강제 노출!
+        `DTSTART;TZID=Asia/Seoul:${formattedDate}T000000`,
+        `DTEND;TZID=Asia/Seoul:${formattedDate}T235959`,
         `SUMMARY:${summary}`,
-        `DESCRIPTION:${descriptionLines.join('\\n')}`, // 내부 줄바꿈 안전 적용
+        `DESCRIPTION:${descLines.join('\\n')}`,
         'END:VEVENT',
       ].join('\r\n')
     );
@@ -142,8 +117,15 @@ export default async function handler(req: Request) {
     'METHOD:PUBLISH',
     'X-WR-CALNAME:❤️ 우리만의 캘린더',
     'X-WR-TIMEZONE:Asia/Seoul',
-    'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
-    'X-PUBLISHED-TTL:PT1H',
+    'BEGIN:VTIMEZONE',
+    'TZID:Asia/Seoul',
+    'BEGIN:STANDARD',
+    'TZOFFSETFROM:+0900',
+    'TZOFFSETTO:+0900',
+    'TZNAME:KST',
+    'DTSTART:19700101T000000',
+    'END:STANDARD',
+    'END:VTIMEZONE',
     ...events,
     'END:VCALENDAR',
   ].join('\r\n');
