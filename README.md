@@ -77,8 +77,11 @@ KASI_API_KEY=your-kasi-api-key
 
 ### Vercel 배포 가이드
 1. Vercel 프로젝트 대시보드 ➔ **Settings** ➔ **Environment Variables**로 이동합니다.
-2. `EXPO_PUBLIC_SUPABASE_URL`과 `EXPO_PUBLIC_SUPABASE_ANON_KEY`를 등록합니다.
-3. 재배포(Redeploy)를 진행하면 Vercel Web 환경에서 안전하게 연결됩니다.
+2. 아래 변수 2개를 정확한 이름으로 등록합니다:
+   - `EXPO_PUBLIC_SUPABASE_URL`
+   - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+3. ⚠️ **중요**: 여행 플래너(`SUPABASE_URL`)와 변수명이 다르며, Expo 웹앱은 `EXPO_PUBLIC_` 접두사가 필수입니다.
+4. ⚠️ **필수**: 환경 변수 저장 후 반드시 **[Deployments] ➔ 최신 배포 ➔ [Redeploy]**를 실행하세요. (Expo Web은 빌드 시점에 환경 변수가 클라이언트 번들에 정적으로 주입되므로 Redeploy를 거쳐야 반영됩니다.)
 
 ---
 

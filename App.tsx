@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 // Types & Constants
 import {
@@ -79,11 +79,74 @@ const formatDateTime = (ts: number) => {
   )}`;
 };
 
-export default function App() {
+/**
+ * 🛡️ 런타임 에러 경계 (Error Boundary): 예기치 못한 에러 시에도 빈 흰 화면(화이트스크린) 방지
+ */
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class CalendarErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('CalendarErrorBoundary caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <SafeAreaView style={styles.errorScreenContainer}>
+          <View style={styles.errorCard}>
+            <Text style={{ fontSize: 36, marginBottom: 10 }}>⚠️</Text>
+            <Text style={styles.errorTitle}>화면 로딩 중 오류가 발생했습니다</Text>
+            <Text style={styles.errorSub}>
+              일시적인 렌더링 문제일 수 있습니다. 아래 버튼을 눌러 새로고침해주세요.
+            </Text>
+            {this.state.error?.message ? (
+              <View style={styles.errorDebugBox}>
+                <Text style={styles.errorDebugText}>{this.state.error.message}</Text>
+              </View>
+            ) : null}
+            <TouchableOpacity
+              style={styles.errorActionBtn}
+              onPress={() => {
+                if (typeof window !== 'undefined' && window.location) {
+                  window.location.reload();
+                } else {
+                  this.setState({ hasError: false, error: null });
+                }
+              }}
+            >
+              <Text style={styles.errorActionBtnText}>페이지 새로고침</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function MainCalendarApp() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [syncState, setSyncState] = useState<SyncState>('synced');
+  const [syncState, setSyncState] = useState<SyncState>(isSupabaseConfigured ? 'synced' : 'error');
   const [calendarKey, setCalendarKey] = useState(0);
+
+  // 미설정 환경변수 안내 모달/화면 바이패스 여부 (사용자가 오프라인 모드로 진입 선택 가능)
+  const [showConfigNotice, setShowConfigNotice] = useState(!isSupabaseConfigured);
 
   // Filter State ('ALL' | 'TOGETHER' | 'HAE' | 'DAWON')
   const [activeFilter, setActiveFilter] = useState<CalendarFilter>('ALL');
@@ -169,9 +232,18 @@ export default function App() {
     }
   };
 
-  // 2. Fetch from Supabase
+  // 2. Fetch from Supabase (Strictly Guarded)
   const fetchCalendarData = async (isInit = false) => {
     if (!isInit) setIsRefreshing(true);
+
+    if (!supabase) {
+      // 🛡️ supabase가 null일 때 .from() 호출 금지
+      console.warn('[Supabase] 클라이언트가 초기화되지 않았습니다. 로컬 캐시 모드로 동작합니다.');
+      setSyncState('error');
+      if (isInit) setIsLoading(false);
+      else setIsRefreshing(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.from('couple_calendar').select('*');
@@ -225,7 +297,7 @@ export default function App() {
     }
   };
 
-  // 3. Sync Single Day to Supabase with local-first preservation
+  // 3. Sync Single Day to Supabase with local-first preservation (Strictly Guarded)
   const syncToSupabase = async (
     date: string,
     hOver: ShiftInfo | null,
@@ -234,6 +306,37 @@ export default function App() {
     hMem: string,
     dMem: string
   ) => {
+    // 로컬 오프라인 캐시 우선 저장
+    try {
+      const updatedHOver = { ...haeOverrides };
+      if (hOver) updatedHOver[date] = hOver; else delete updatedHOver[date];
+      const updatedDOver = { ...dawonOverrides };
+      if (dOver) updatedDOver[date] = dOver; else delete updatedDOver[date];
+      const updatedMemos = { ...memos, [date]: mem };
+      const updatedHMemos = { ...haeMemos, [date]: hMem };
+      const updatedDMemos = { ...dawonMemos, [date]: dMem };
+
+      await AsyncStorage.setItem(
+        '@offline_calendar_cache',
+        JSON.stringify({
+          haeOverrides: updatedHOver,
+          dawonOverrides: updatedDOver,
+          memos: updatedMemos,
+          haeMemos: updatedHMemos,
+          dawonMemos: updatedDMemos,
+        })
+      );
+    } catch (e) {
+      console.warn('Local cache save error', e);
+    }
+
+    if (!supabase) {
+      // 🛡️ supabase가 null일 때 .upsert() 호출 금지
+      setSyncState('error');
+      console.warn('[Supabase] 서버 설정이 누락되어 로컬 기기에만 저장되었습니다.');
+      return;
+    }
+
     setSyncState('saving');
     try {
       const payload = {
@@ -294,26 +397,42 @@ export default function App() {
       fetchCalendarData(true);
     });
 
-    const subscription = supabase
-      .channel('public:couple_calendar')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'couple_calendar' },
-        (payload) => {
-          const newRow = payload.new as any;
-          if (newRow && newRow.date) {
-            setHaeOverrides((prev) => ({ ...prev, [newRow.date]: newRow.hae_shift }));
-            setDawonOverrides((prev) => ({ ...prev, [newRow.date]: newRow.dawon_shift }));
-            setMemos((prev) => ({ ...prev, [newRow.date]: newRow.memo }));
-            setHaeMemos((prev) => ({ ...prev, [newRow.date]: newRow.hae_memo }));
-            setDawonMemos((prev) => ({ ...prev, [newRow.date]: newRow.dawon_memo }));
+    if (!supabase) {
+      // 🛡️ supabase가 null일 때 Realtime 채널 구독 생략
+      return;
+    }
+
+    let subscription: any = null;
+    try {
+      subscription = supabase
+        .channel('public:couple_calendar')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'couple_calendar' },
+          (payload) => {
+            const newRow = payload.new as any;
+            if (newRow && newRow.date) {
+              setHaeOverrides((prev) => ({ ...prev, [newRow.date]: newRow.hae_shift }));
+              setDawonOverrides((prev) => ({ ...prev, [newRow.date]: newRow.dawon_shift }));
+              setMemos((prev) => ({ ...prev, [newRow.date]: newRow.memo }));
+              setHaeMemos((prev) => ({ ...prev, [newRow.date]: newRow.hae_memo }));
+              setDawonMemos((prev) => ({ ...prev, [newRow.date]: newRow.dawon_memo }));
+            }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
+    } catch (err) {
+      console.warn('Realtime channel subscribe failed:', err);
+    }
 
     return () => {
-      supabase.removeChannel(subscription);
+      if (supabase && subscription) {
+        try {
+          supabase.removeChannel(subscription);
+        } catch (e) {
+          console.warn('Remove channel error', e);
+        }
+      }
     };
   }, []);
 
@@ -744,6 +863,80 @@ export default function App() {
     );
   }
 
+  // 🛡️ [수정 2] 환경 변수 미설정 시 흰 화면 대신 한국어 안내 카드 렌더링
+  if (showConfigNotice) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: themeColors.bgOverlay }]}>
+        <View style={styles.webCenteringContainer}>
+          <ScrollView contentContainerStyle={styles.noticeScrollContent}>
+            <View style={[styles.noticeCard, { backgroundColor: themeColors.cardBg }]}>
+              <Text style={styles.noticeIcon}>⚙️</Text>
+              <Text style={[styles.noticeTitle, { color: themeColors.text }]}>
+                서버 연결 설정이 필요합니다
+              </Text>
+              <Text style={[styles.noticeSub, { color: themeColors.subText }]}>
+                Vercel 환경 변수가 등록되지 않아 Supabase 서버와의 실시간 동기화가 일시 중단되었습니다.
+              </Text>
+
+              <View style={[styles.noticeGuideBox, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}>
+                <Text style={[styles.noticeGuideTitle, { color: themeColors.text }]}>
+                  📋 Vercel 대시보드 등록 안내
+                </Text>
+                <Text style={[styles.noticeStepText, { color: themeColors.subText }]}>
+                  1. Vercel 프로젝트 ➔ <Text style={{ fontWeight: 'bold' }}>Settings</Text> ➔ <Text style={{ fontWeight: 'bold' }}>Environment Variables</Text> 이동
+                </Text>
+                <Text style={[styles.noticeStepText, { color: themeColors.subText }]}>
+                  2. 아래 변수 2개를 등록하세요:
+                </Text>
+
+                <View style={styles.envCodeBox}>
+                  <Text style={styles.envKeyName}>EXPO_PUBLIC_SUPABASE_URL</Text>
+                  <Text style={styles.envKeyDesc}>예: https://xxxx.supabase.co</Text>
+                </View>
+
+                <View style={[styles.envCodeBox, { marginTop: 6 }]}>
+                  <Text style={styles.envKeyName}>EXPO_PUBLIC_SUPABASE_ANON_KEY</Text>
+                  <Text style={styles.envKeyDesc}>예: eyJhbGciOiJIUzI1NiIsInR5cCI6...</Text>
+                </View>
+
+                <Text style={[styles.noticeNoticeRed, { color: '#FF3B30' }]}>
+                  ⚠️ 저장 후 반드시 [Deployments]에서 최신 빌드를 [Redeploy] 하셔야 합니다.{'\n'}
+                  (Expo Web은 빌드 시점에 환경변수가 번들에 주입됩니다)
+                </Text>
+                <Text style={[styles.noticeNoticeSub, { color: themeColors.subText }]}>
+                  ※ 여행 플래너(SUPABASE_URL)와 달리 Expo는 `EXPO_PUBLIC_` 접두사가 필수입니다.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.noticePrimaryBtn}
+                onPress={() => setShowConfigNotice(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.noticePrimaryBtnText}>📱 로컬 캐시로 달력 열기 (오프라인 모드)</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.noticeSecondaryBtn}
+                onPress={() => {
+                  if (typeof window !== 'undefined' && window.location) {
+                    window.location.reload();
+                  } else {
+                    fetchCalendarData(false);
+                  }
+                }}
+              >
+                <Text style={[styles.noticeSecondaryBtnText, { color: themeColors.primary }]}>
+                  🔄 설정 완료 후 새로고침
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.bgOverlay }]}>
       <View
@@ -775,29 +968,36 @@ export default function App() {
         <View style={styles.header}>
           {/* Left: Sync Status Pill */}
           <View style={styles.headerLeft}>
-            <View
+            <TouchableOpacity
+              onPress={() => {
+                if (!isSupabaseConfigured) setShowConfigNotice(true);
+              }}
               style={[
                 styles.syncPill,
                 {
-                  backgroundColor:
-                    syncState === 'synced'
-                      ? 'rgba(52, 199, 89, 0.12)'
-                      : syncState === 'saving'
-                      ? 'rgba(255, 204, 0, 0.15)'
-                      : 'rgba(255, 59, 48, 0.12)',
+                  backgroundColor: !isSupabaseConfigured
+                    ? 'rgba(255, 59, 48, 0.12)'
+                    : syncState === 'synced'
+                    ? 'rgba(52, 199, 89, 0.12)'
+                    : syncState === 'saving'
+                    ? 'rgba(255, 204, 0, 0.15)'
+                    : 'rgba(255, 59, 48, 0.12)',
                 },
               ]}
+              accessibilityRole="button"
+              accessibilityLabel="동기화 상태 확인"
             >
               <View
                 style={[
                   styles.syncDot,
                   {
-                    backgroundColor:
-                      syncState === 'synced'
-                        ? '#34C759'
-                        : syncState === 'saving'
-                        ? '#FFCC00'
-                        : '#FF3B30',
+                    backgroundColor: !isSupabaseConfigured
+                      ? '#FF3B30'
+                      : syncState === 'synced'
+                      ? '#34C759'
+                      : syncState === 'saving'
+                      ? '#FFCC00'
+                      : '#FF3B30',
                   },
                 ]}
               />
@@ -805,22 +1005,25 @@ export default function App() {
                 style={[
                   styles.syncText,
                   {
-                    color:
-                      syncState === 'synced'
-                        ? '#34C759'
-                        : syncState === 'saving'
-                        ? '#B28A00'
-                        : '#FF3B30',
+                    color: !isSupabaseConfigured
+                      ? '#FF3B30'
+                      : syncState === 'synced'
+                      ? '#34C759'
+                      : syncState === 'saving'
+                      ? '#B28A00'
+                      : '#FF3B30',
                   },
                 ]}
               >
-                {syncState === 'synced'
+                {!isSupabaseConfigured
+                  ? '오프라인 (설정필요)'
+                  : syncState === 'synced'
                   ? '동기화됨'
                   : syncState === 'saving'
                   ? '저장 중...'
                   : '오프라인'}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Center: Title & D-Day */}
@@ -1540,12 +1743,83 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return (
+    <CalendarErrorBoundary>
+      <MainCalendarApp />
+    </CalendarErrorBoundary>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { fontSize: 15, fontWeight: 'bold', marginTop: 12 },
   webCenteringContainer: { flex: 1, width: '100%', maxWidth: 500, alignSelf: 'center' },
   scrollContent: { paddingBottom: 35 },
+
+  // Error Screen
+  errorScreenContainer: { flex: 1, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  errorCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderRadius: 22,
+    maxWidth: 440,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  errorTitle: { fontSize: 18, fontWeight: '900', color: '#1C1C1E', textAlign: 'center', marginBottom: 8 },
+  errorSub: { fontSize: 13, color: '#6E6E73', textAlign: 'center', marginBottom: 16, lineHeight: 20 },
+  errorDebugBox: { backgroundColor: '#F2F2F7', padding: 10, borderRadius: 10, width: '100%', marginBottom: 16 },
+  errorDebugText: { fontSize: 11, color: '#FF3B30', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  errorActionBtn: { backgroundColor: '#007AFF', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 },
+  errorActionBtnText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 },
+
+  // Notice Screen (Env missing)
+  noticeScrollContent: { padding: 20, justifyContent: 'center', minHeight: '100%' },
+  noticeCard: {
+    borderRadius: 22,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  noticeIcon: { fontSize: 36, textAlign: 'center', marginBottom: 12 },
+  noticeTitle: { fontSize: 19, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+  noticeSub: { fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
+  noticeGuideBox: { padding: 16, borderRadius: 16, marginBottom: 18 },
+  noticeGuideTitle: { fontSize: 14, fontWeight: '800', marginBottom: 10 },
+  noticeStepText: { fontSize: 12, lineHeight: 18, marginBottom: 6 },
+  envCodeBox: {
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  envKeyName: { fontSize: 13, fontWeight: '800', color: '#007AFF', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  envKeyDesc: { fontSize: 11, color: '#8E8E93', marginTop: 2 },
+  noticeNoticeRed: { fontSize: 11, fontWeight: '700', lineHeight: 16, marginTop: 12 },
+  noticeNoticeSub: { fontSize: 11, marginTop: 4, lineHeight: 16 },
+  noticePrimaryBtn: {
+    backgroundColor: '#FF2D55',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  noticePrimaryBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+  noticeSecondaryBtn: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  noticeSecondaryBtnText: { fontSize: 13, fontWeight: '700' },
 
   // Briefing Banner
   briefingBanner: {
@@ -1578,7 +1852,7 @@ const styles = StyleSheet.create({
     marginVertical: 6,
     width: '100%',
   },
-  headerLeft: { width: 85, alignItems: 'flex-start' },
+  headerLeft: { width: 95, alignItems: 'flex-start' },
   syncPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1595,7 +1869,7 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 85,
+    width: 95,
     justifyContent: 'flex-end',
     gap: 4,
   },

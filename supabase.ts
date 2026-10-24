@@ -1,21 +1,34 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// 🔒 보안 강화: 소스 코드 내 하드코딩된 Supabase URL 및 키를 완전히 배제하고 환경 변수만 사용
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+// 🔒 Vercel / Expo 환경 변수 로드
+const rawUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+const rawKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
-if (!supabaseUrl || !supabaseAnonKey) {
+// 환경변수가 정상적으로 주입되었는지 검증 (빈 문자열이거나 템플릿 값인 경우 제외)
+export const isSupabaseConfigured = Boolean(
+  rawUrl &&
+  rawKey &&
+  rawUrl.startsWith('http') &&
+  !rawUrl.includes('your-project')
+);
+
+if (!isSupabaseConfigured) {
   console.warn(
-    '[Supabase] EXPO_PUBLIC_SUPABASE_URL 또는 EXPO_PUBLIC_SUPABASE_ANON_KEY 환경 변수가 누락되었습니다. .env 설정을 확인해주세요.'
+    '[Supabase] EXPO_PUBLIC_SUPABASE_URL 또는 EXPO_PUBLIC_SUPABASE_ANON_KEY 환경 변수가 누락되었습니다.\n' +
+    'Vercel 대시보드(Settings > Environment Variables)에서 변수를 등록하고 반드시 Redeploy 하세요.'
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-});
+// ⚠️ 절대 금지: createClient('', '')를 호출하면 런타임 예외로 React 전체가 화이트스크린으로 크래시합니다.
+// 환경변수가 온전할 때만 실제 인스턴스를 생성하고, 없으면 안전하게 null을 반환합니다.
+export const supabase: SupabaseClient | null = isSupabaseConfigured
+  ? createClient(rawUrl!, rawKey!, {
+      auth: {
+        storage: AsyncStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+      },
+    })
+  : null;
