@@ -37,8 +37,8 @@ const escapeSummary = (text: string) => {
 
 export default async function handler(req: Request) {
   const url = new URL(req.url);
-  const supabaseUrl = url.searchParams.get('u') || '';
-  const supabaseKey = url.searchParams.get('k') || '';
+  const supabaseUrl = url.searchParams.get('u') || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+  const supabaseKey = url.searchParams.get('k') || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
   const overridesMap: Record<string, any> = {};
 

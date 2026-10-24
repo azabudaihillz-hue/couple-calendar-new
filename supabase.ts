@@ -1,8 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const supabaseUrl = 'https://abjspnuohxouufkdjefs.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFianNwbnVvaHhvdXVma2RqZWZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMDA5NzcsImV4cCI6MjEwNDg3Njk3N30.hVL3TRPwA1xalf1Tb2LiKJ58Q_DgBc5RWwFs2AfR890';
+// 🔒 보안 강화: 소스 코드 내 하드코딩된 Supabase URL 및 키를 완전히 배제하고 환경 변수만 사용
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn(
+    '[Supabase] EXPO_PUBLIC_SUPABASE_URL 또는 EXPO_PUBLIC_SUPABASE_ANON_KEY 환경 변수가 누락되었습니다. .env 설정을 확인해주세요.'
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
