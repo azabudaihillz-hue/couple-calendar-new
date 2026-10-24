@@ -2,8 +2,22 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // 🔒 Vercel / Expo 환경 변수 로드
-const rawUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
-const rawKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
+// 유연한 매핑: 오타나 변형(예: 끝에 _가 붙은 경우)까지 방어적으로 처리
+const rawUrl = (
+  process.env.EXPO_PUBLIC_SUPABASE_URL ||
+  process.env.EXPO_PUBLIC_SUPABASE_URL_ ||
+  process.env.EXPO_PUBLIC__SUPABASE_URL ||
+  process.env.SUPABASE_URL ||
+  ''
+).trim();
+
+const rawKey = (
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY_ ||
+  process.env.EXPO_PUBLIC__SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  ''
+).trim();
 
 // 환경변수가 정상적으로 주입되었는지 검증 (빈 문자열이거나 템플릿 값인 경우 제외)
 export const isSupabaseConfigured = Boolean(
@@ -23,7 +37,7 @@ if (!isSupabaseConfigured) {
 // ⚠️ 절대 금지: createClient('', '')를 호출하면 런타임 예외로 React 전체가 화이트스크린으로 크래시합니다.
 // 환경변수가 온전할 때만 실제 인스턴스를 생성하고, 없으면 안전하게 null을 반환합니다.
 export const supabase: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(rawUrl!, rawKey!, {
+  ? createClient(rawUrl, rawKey, {
       auth: {
         storage: AsyncStorage,
         autoRefreshToken: true,
