@@ -2,19 +2,20 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // 🔒 Vercel / Expo 환경 변수 로드
-// 유연한 매핑: 오타나 변형(예: 끝에 _가 붙은 경우)까지 방어적으로 처리
+// 우선순위: EXPO_PUBLIC_COUPLE_SUPABASE_URL -> EXPO_PUBLIC_SUPABASE_URL
 const rawUrl = (
+  process.env.EXPO_PUBLIC_COUPLE_SUPABASE_URL ||
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
   process.env.EXPO_PUBLIC_SUPABASE_URL_ ||
-  process.env.EXPO_PUBLIC__SUPABASE_URL ||
   process.env.SUPABASE_URL ||
   ''
 ).trim();
 
+// 우선순위: EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY -> EXPO_PUBLIC_SUPABASE_ANON_KEY
 const rawKey = (
+  process.env.EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY ||
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY_ ||
-  process.env.EXPO_PUBLIC__SUPABASE_ANON_KEY ||
   process.env.SUPABASE_ANON_KEY ||
   ''
 ).trim();
@@ -29,8 +30,8 @@ export const isSupabaseConfigured = Boolean(
 
 if (!isSupabaseConfigured) {
   console.warn(
-    '[Supabase] EXPO_PUBLIC_SUPABASE_URL 또는 EXPO_PUBLIC_SUPABASE_ANON_KEY 환경 변수가 누락되었습니다.\n' +
-    'Vercel 대시보드(Settings > Environment Variables)에서 변수를 등록하고 반드시 Redeploy 하세요.'
+    '[Supabase] EXPO_PUBLIC_COUPLE_SUPABASE_URL 또는 EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY 환경 변수가 누락되었습니다.\n' +
+    'Vercel 대시보드(Settings > Environment Variables)에서 Type=Config 로 변수를 등록하고 반드시 Redeploy 하세요.'
   );
 }
 

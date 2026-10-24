@@ -39,12 +39,14 @@ export default async function handler(req: Request) {
   const url = new URL(req.url);
   const supabaseUrl =
     url.searchParams.get('u') ||
+    process.env.EXPO_PUBLIC_COUPLE_SUPABASE_URL ||
     process.env.EXPO_PUBLIC_SUPABASE_URL ||
     process.env.EXPO_PUBLIC_SUPABASE_URL_ ||
     process.env.SUPABASE_URL ||
     '';
   const supabaseKey =
     url.searchParams.get('k') ||
+    process.env.EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY ||
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY_ ||
     process.env.SUPABASE_ANON_KEY ||

@@ -886,16 +886,16 @@ function MainCalendarApp() {
                   1. Vercel 프로젝트 ➔ <Text style={{ fontWeight: 'bold' }}>Settings</Text> ➔ <Text style={{ fontWeight: 'bold' }}>Environment Variables</Text> 이동
                 </Text>
                 <Text style={[styles.noticeStepText, { color: themeColors.subText }]}>
-                  2. 아래 변수 2개를 등록하세요:
+                  2. 아래 변수 2개를 등록하세요 (Type: Config 권장):
                 </Text>
 
                 <View style={styles.envCodeBox}>
-                  <Text style={styles.envKeyName}>EXPO_PUBLIC_SUPABASE_URL</Text>
+                  <Text style={styles.envKeyName}>EXPO_PUBLIC_COUPLE_SUPABASE_URL</Text>
                   <Text style={styles.envKeyDesc}>예: https://xxxx.supabase.co</Text>
                 </View>
 
                 <View style={[styles.envCodeBox, { marginTop: 6 }]}>
-                  <Text style={styles.envKeyName}>EXPO_PUBLIC_SUPABASE_ANON_KEY</Text>
+                  <Text style={styles.envKeyName}>EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY</Text>
                   <Text style={styles.envKeyDesc}>예: eyJhbGciOiJIUzI1NiIsInR5cCI6...</Text>
                 </View>
 
@@ -904,7 +904,8 @@ function MainCalendarApp() {
                   (Expo Web은 빌드 시점에 환경변수가 번들에 주입됩니다)
                 </Text>
                 <Text style={[styles.noticeNoticeSub, { color: themeColors.subText }]}>
-                  ※ 여행 플래너(SUPABASE_URL)와 달리 Expo는 `EXPO_PUBLIC_` 접두사가 필수입니다.
+                  💡 EXPO_PUBLIC 은 클라이언트 공개 변수이며 Vercel에서는 Type = Config 로 등록합니다.{'\n'}
+                  ※ 여행 플래너(SUPABASE_URL)와 달리 우리 캘린더는 위 COUPLE_ 전용 변수명을 사용합니다.
                 </Text>
               </View>
 

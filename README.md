@@ -63,9 +63,11 @@ React Native (Expo) 기반으로 모바일 및 웹 환경(Vercel)에 완벽 최�
 프로젝트 루트의 `.env` 파일(또는 Vercel 대시보드의 Environment Variables)에 다음 값을 설정합니다:
 
 ```env
-# Supabase 필수 환경 변수
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+# Supabase 필수 환경 변수 (Type: Config 권장)
+EXPO_PUBLIC_COUPLE_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# (하위 호환) EXPO_PUBLIC_SUPABASE_URL 도 폴백으로 지원됩니다.
 
 # (선택) 초기 관리자 금고 PIN 해시 (기본 솔트 SHA-256 해시)
 # 기본값: 1e9209557e240eb689d3c37a9340259f736fd76e198b80b32703a4af5fea9e67
@@ -77,10 +79,11 @@ KASI_API_KEY=your-kasi-api-key
 
 ### Vercel 배포 가이드
 1. Vercel 프로젝트 대시보드 ➔ **Settings** ➔ **Environment Variables**로 이동합니다.
-2. 아래 변수 2개를 정확한 이름으로 등록합니다:
-   - `EXPO_PUBLIC_SUPABASE_URL`
-   - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-3. ⚠️ **중요**: 여행 플래너(`SUPABASE_URL`)와 변수명이 다르며, Expo 웹앱은 `EXPO_PUBLIC_` 접두사가 필수입니다.
+2. 아래 변수 2개를 등록합니다:
+   - Key: `EXPO_PUBLIC_COUPLE_SUPABASE_URL` / Type: **Config**
+   - Key: `EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY` / Type: **Config**
+   *(EXPO_PUBLIC_ 은 브라우저 클라이언트가 읽는 의도된 public 변수이므로 Secret이 아닌 Config로 등록합니다)*
+3. ⚠️ **중요**: 여행 플래너(`SUPABASE_URL`)와 변수명이 다르며, 우리 캘린더는 `EXPO_PUBLIC_COUPLE_` 전용 키를 사용합니다.
 4. ⚠️ **필수**: 환경 변수 저장 후 반드시 **[Deployments] ➔ 최신 배포 ➔ [Redeploy]**를 실행하세요. (Expo Web은 빌드 시점에 환경 변수가 클라이언트 번들에 정적으로 주입되므로 Redeploy를 거쳐야 반영됩니다.)
 
 ---
