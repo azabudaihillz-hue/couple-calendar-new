@@ -34,6 +34,16 @@ import {
 } from './src/constants/shifts';
 import { DEFAULT_HOLIDAYS } from './src/constants/holidays';
 import { calculateMonthlySalary } from './src/utils/salary';
+import {
+  HISTORY_SYNC_DATE,
+  RESTORED_HAE_OVERRIDES,
+  RESTORED_DAWON_OVERRIDES,
+  RESTORED_MEMOS,
+  RESTORED_HAE_MEMOS,
+  RESTORED_DAWON_MEMOS,
+  RESTORED_MEMO_HISTORY,
+  INITIAL_CALENDAR_ROWS,
+} from './src/constants/defaultCalendarData';
 
 // Modular UI Components
 import { UpcomingDoubleOffCard } from './src/components/UpcomingDoubleOffCard';
@@ -151,12 +161,12 @@ function MainCalendarApp() {
   // Filter State ('ALL' | 'TOGETHER' | 'HAE' | 'DAWON')
   const [activeFilter, setActiveFilter] = useState<CalendarFilter>('ALL');
 
-  // Overrides & Memos
-  const [haeOverrides, setHaeOverrides] = useState<Record<string, ShiftInfo>>({});
-  const [dawonOverrides, setDawonOverrides] = useState<Record<string, ShiftInfo>>({});
-  const [memos, setMemos] = useState<Record<string, string>>({});
-  const [haeMemos, setHaeMemos] = useState<Record<string, string>>({});
-  const [dawonMemos, setDawonMemos] = useState<Record<string, string>>({});
+  // Overrides & Memos (복구된 원본 근무/메모 데이터 기본 탑재)
+  const [haeOverrides, setHaeOverrides] = useState<Record<string, ShiftInfo>>(RESTORED_HAE_OVERRIDES);
+  const [dawonOverrides, setDawonOverrides] = useState<Record<string, ShiftInfo>>(RESTORED_DAWON_OVERRIDES);
+  const [memos, setMemos] = useState<Record<string, string>>(RESTORED_MEMOS);
+  const [haeMemos, setHaeMemos] = useState<Record<string, string>>(RESTORED_HAE_MEMOS);
+  const [dawonMemos, setDawonMemos] = useState<Record<string, string>>(RESTORED_DAWON_MEMOS);
 
   // Hae Cycle Base Date
   const [cycleBaseDate, setCycleBaseDate] = useState<string>(DEFAULT_CYCLE_BASE_DATE);
@@ -189,7 +199,7 @@ function MainCalendarApp() {
   const [isDark, setIsDark] = useState(false);
   const [dDayText, setDDayText] = useState('');
   const [showBriefingBanner, setShowBriefingBanner] = useState(true);
-  const [memoHistory, setMemoHistory] = useState<MemoLog[]>([]);
+  const [memoHistory, setMemoHistory] = useState<MemoLog[]>(RESTORED_MEMO_HISTORY);
 
   // Theme tokens
   const themeColors = {
@@ -217,15 +227,32 @@ function MainCalendarApp() {
 
       if (savedBaseDate) setCycleBaseDate(savedBaseDate);
       if (savedTheme !== null) setIsDark(savedTheme === 'true');
-      if (savedHistory) setMemoHistory(JSON.parse(savedHistory));
+      if (savedHistory) {
+        try {
+          const parsed = JSON.parse(savedHistory);
+          if (Array.isArray(parsed) && parsed.length > 0) setMemoHistory(parsed);
+        } catch (e) {}
+      }
 
       if (savedCache) {
-        const cache = JSON.parse(savedCache);
-        if (cache.haeOverrides) setHaeOverrides(cache.haeOverrides);
-        if (cache.dawonOverrides) setDawonOverrides(cache.dawonOverrides);
-        if (cache.memos) setMemos(cache.memos);
-        if (cache.haeMemos) setHaeMemos(cache.haeMemos);
-        if (cache.dawonMemos) setDawonMemos(cache.dawonMemos);
+        try {
+          const cache = JSON.parse(savedCache);
+          if (cache.haeOverrides && Object.keys(cache.haeOverrides).length > 0) {
+            setHaeOverrides((prev) => ({ ...RESTORED_HAE_OVERRIDES, ...cache.haeOverrides }));
+          }
+          if (cache.dawonOverrides && Object.keys(cache.dawonOverrides).length > 0) {
+            setDawonOverrides((prev) => ({ ...RESTORED_DAWON_OVERRIDES, ...cache.dawonOverrides }));
+          }
+          if (cache.memos && Object.keys(cache.memos).length > 0) {
+            setMemos((prev) => ({ ...RESTORED_MEMOS, ...cache.memos }));
+          }
+          if (cache.haeMemos && Object.keys(cache.haeMemos).length > 0) {
+            setHaeMemos((prev) => ({ ...RESTORED_HAE_MEMOS, ...cache.haeMemos }));
+          }
+          if (cache.dawonMemos && Object.keys(cache.dawonMemos).length > 0) {
+            setDawonMemos((prev) => ({ ...RESTORED_DAWON_MEMOS, ...cache.dawonMemos }));
+          }
+        } catch (e) {}
       }
     } catch (e) {
       console.warn('Local settings load error', e);
@@ -238,7 +265,7 @@ function MainCalendarApp() {
 
     if (!supabase) {
       // 🛡️ supabase가 null일 때 .from() 호출 금지
-      console.warn('[Supabase] 클라이언트가 초기화되지 않았습니다. 로컬 캐시 모드로 동작합니다.');
+      console.warn('[Supabase] 클라이언트가 초기화되지 않았습니다. 로컬 복구 데이터로 동작합니다.');
       setSyncState('error');
       if (isInit) setIsLoading(false);
       else setIsRefreshing(false);
@@ -255,38 +282,60 @@ function MainCalendarApp() {
       }
 
       if (data) {
-        const hOver: Record<string, ShiftInfo> = {};
-        const dOver: Record<string, ShiftInfo> = {};
-        const memoMap: Record<string, string> = {};
-        const hMemoMap: Record<string, string> = {};
-        const dMemoMap: Record<string, string> = {};
+        if (data.length === 0) {
+          // 🚀 연결된 Supabase 데이터베이스가 비어있는 경우 복구된 131개 데이터를 자동 복원 업로드
+          console.log('[Supabase] 빈 데이터베이스 감지: 복구된 131건의 근무 및 메모를 자동 동기화합니다.');
+          try {
+            await supabase.from('couple_calendar').upsert(INITIAL_CALENDAR_ROWS, { onConflict: 'date' });
+          } catch (seedErr) {
+            console.warn('Auto seed error', seedErr);
+          }
+        } else {
+          const hOver: Record<string, ShiftInfo> = { ...RESTORED_HAE_OVERRIDES };
+          const dOver: Record<string, ShiftInfo> = { ...RESTORED_DAWON_OVERRIDES };
+          const memoMap: Record<string, string> = { ...RESTORED_MEMOS };
+          const hMemoMap: Record<string, string> = { ...RESTORED_HAE_MEMOS };
+          const dMemoMap: Record<string, string> = { ...RESTORED_DAWON_MEMOS };
 
-        data.forEach((row: any) => {
-          if (row.hae_shift) hOver[row.date] = row.hae_shift;
-          if (row.dawon_shift) dOver[row.date] = row.dawon_shift;
-          if (row.memo) memoMap[row.date] = row.memo;
-          if (row.hae_memo) hMemoMap[row.date] = row.hae_memo;
-          if (row.dawon_memo) dMemoMap[row.date] = row.dawon_memo;
-        });
+          data.forEach((row: any) => {
+            if (row.date === HISTORY_SYNC_DATE) {
+              if (row.memo) {
+                try {
+                  const remoteHistory = JSON.parse(row.memo);
+                  if (Array.isArray(remoteHistory) && remoteHistory.length > 0) {
+                    setMemoHistory(remoteHistory);
+                    AsyncStorage.setItem('@memo_history', JSON.stringify(remoteHistory));
+                  }
+                } catch (e) {}
+              }
+              return;
+            }
+            if (row.hae_shift) hOver[row.date] = row.hae_shift;
+            if (row.dawon_shift) dOver[row.date] = row.dawon_shift;
+            if (row.memo) memoMap[row.date] = row.memo;
+            if (row.hae_memo) hMemoMap[row.date] = row.hae_memo;
+            if (row.dawon_memo) dMemoMap[row.date] = row.dawon_memo;
+          });
 
-        setHaeOverrides(hOver);
-        setDawonOverrides(dOver);
-        setMemos(memoMap);
-        setHaeMemos(hMemoMap);
-        setDawonMemos(dMemoMap);
-        setSyncState('synced');
+          setHaeOverrides(hOver);
+          setDawonOverrides(dOver);
+          setMemos(memoMap);
+          setHaeMemos(hMemoMap);
+          setDawonMemos(dMemoMap);
+          setSyncState('synced');
 
-        // Update offline cache
-        await AsyncStorage.setItem(
-          '@offline_calendar_cache',
-          JSON.stringify({
-            haeOverrides: hOver,
-            dawonOverrides: dOver,
-            memos: memoMap,
-            haeMemos: hMemoMap,
-            dawonMemos: dMemoMap,
-          })
-        );
+          // Update offline cache
+          await AsyncStorage.setItem(
+            '@offline_calendar_cache',
+            JSON.stringify({
+              haeOverrides: hOver,
+              dawonOverrides: dOver,
+              memos: memoMap,
+              haeMemos: hMemoMap,
+              dawonMemos: dMemoMap,
+            })
+          );
+        }
       }
     } catch (err) {
       console.warn('Network error while fetching:', err);
@@ -387,6 +436,12 @@ function MainCalendarApp() {
     setMemoHistory((prev) => {
       const updated = [log, ...prev].slice(0, 100);
       AsyncStorage.setItem('@memo_history', JSON.stringify(updated));
+      if (supabase) {
+        supabase
+          .from('couple_calendar')
+          .upsert({ date: HISTORY_SYNC_DATE, memo: JSON.stringify(updated) }, { onConflict: 'date' })
+          .catch(() => {});
+      }
       return updated;
     });
   };
@@ -412,6 +467,13 @@ function MainCalendarApp() {
           (payload) => {
             const newRow = payload.new as any;
             if (newRow && newRow.date) {
+              if (newRow.date === HISTORY_SYNC_DATE) {
+                try {
+                  const remoteHist = JSON.parse(newRow.memo);
+                  if (Array.isArray(remoteHist)) setMemoHistory(remoteHist);
+                } catch (e) {}
+                return;
+              }
               setHaeOverrides((prev) => ({ ...prev, [newRow.date]: newRow.hae_shift }));
               setDawonOverrides((prev) => ({ ...prev, [newRow.date]: newRow.dawon_shift }));
               setMemos((prev) => ({ ...prev, [newRow.date]: newRow.memo }));

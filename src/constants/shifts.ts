@@ -15,6 +15,7 @@ export const DAWON_SHIFTS: Record<string, ShiftInfo> = {
   EVE: { id: 'EVE', label: '이브닝', text: 'E', color: '#E0C3FC', textColor: '#1C1C1E' },
   SW:  { id: 'SW',  label: '스윙', text: 'S', color: '#BDE0FE', textColor: '#1C1C1E' },
   GY:  { id: 'GY',  label: '야간', text: 'G', color: '#D3D3D3', textColor: '#1C1C1E' },
+  NI:  { id: 'NI',  label: '야간', text: 'N', color: '#D3D3D3', textColor: '#1C1C1E' },
   OFF: { id: 'OFF', label: '휴무', text: '휴', color: '#FFCAD4', textColor: '#1C1C1E' },
 };
 
