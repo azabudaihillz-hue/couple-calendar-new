@@ -584,6 +584,17 @@ function MainCalendarApp() {
     else setDDayText('');
   }, [memos, todayStr]);
 
+  // ⏱️ 상단 브리핑 배너 약 2.5초 후 자동 숨김 & 언마운트 시 타이머 정리
+  useEffect(() => {
+    if (isLoading || showConfigNotice || !showBriefingBanner) return;
+
+    const timer = setTimeout(() => {
+      setShowBriefingBanner(false);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [isLoading, showConfigNotice, showBriefingBanner]);
+
   // Upcoming 5 Double-Off Dates & Current Month Double-Off Count
   const { upcomingDoubleOffDates, currentMonthDoubleOffCount } = useMemo(() => {
     const upcoming: string[] = [];
@@ -1023,7 +1034,17 @@ function MainCalendarApp() {
                 {briefingText}
               </Text>
             </View>
-            <Text style={styles.briefingClose}>×</Text>
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation?.();
+                setShowBriefingBanner(false);
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="브리핑 배너 닫기 버튼"
+            >
+              <Text style={styles.briefingClose}>×</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         )}
 
