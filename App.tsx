@@ -203,7 +203,6 @@ export default function App() {
   const [pinError, setPinError] = useState(false);
   const [currentViewYearMonth, setCurrentViewYearMonth] = useState(() => todayStr.slice(0, 7));
   
-  // 관리자 급여 대시보드 추가 변수
   const [extraBonusInput, setExtraBonusInput] = useState('0');
   const [taxInput, setTaxInput] = useState('');
   const [mealInput, setMealInput] = useState('5000');
@@ -226,7 +225,6 @@ export default function App() {
 
   const coupleDaysCount = Math.floor((new Date(todayStr + 'T00:00:00Z').getTime() - COUPLE_START_DATE.getTime()) / 86400000) + 1;
 
-  // [수정 원칙] .catch 체이닝 완벽 제거 및 try/catch 적용
   const syncHistoryToSupabase = async (historyArray: any[]) => {
     try {
       if (!supabase) return;
@@ -547,7 +545,6 @@ export default function App() {
     else setDDayText('');
   }, [haeOverrides, dawonOverrides, memos, haeMemos, dawonMemos, isLoading, todayStr, holidays]);
 
-  // [수정 원칙] .catch 체이닝 완벽 제거 및 try/catch 적용
   const syncToSupabase = async (date: string, hOver: any, dOver: any, mem: string, hMem: string, dMem: string) => {
     try {
       if (!supabase) return;
@@ -692,6 +689,7 @@ export default function App() {
     syncToSupabase(selectedDate, haeOverrides[selectedDate], null, memoInput, haeMemoInput, dawonMemoInput);
   };
 
+  // 🔒 급여 대시보드 조작 및 월 이동 화살표 함수
   const openVaultModal = () => {
     setIsVaultUnlocked(false);
     setPinInput('');
@@ -716,6 +714,27 @@ export default function App() {
     }
   };
 
+  const navigateVaultMonth = (direction: 'prev' | 'next') => {
+    const [yearStr, monthStr] = currentViewYearMonth.split('-');
+    let y = parseInt(yearStr, 10);
+    let m = parseInt(monthStr, 10);
+
+    if (direction === 'prev') {
+      m -= 1;
+      if (m === 0) {
+        m = 12;
+        y -= 1;
+      }
+    } else {
+      m += 1;
+      if (m === 13) {
+        m = 1;
+        y += 1;
+      }
+    }
+    setCurrentViewYearMonth(`${y}-${String(m).padStart(2, '0')}`);
+  };
+
   const getWidgetSubscriptionUrls = () => {
     const origin =
       Platform.OS === 'web' && typeof window !== 'undefined'
@@ -738,25 +757,36 @@ export default function App() {
     }
   };
 
-  // 최신 5단계 맞춤형 급여 계산 (분 단위 변동 수당, 누진세 차감 등 적용)
   const calculateMonthlyStats = () => {
     let normalNightCount = 0;
     let holidayNightCount = 0;
     let holidayDaySwingCount = 0;
     let totalOtHours = 0;
+    
     let doubleOffCount = 0;
     let dateCount = 0;
 
-    Object.keys(markedDates).forEach((dateStr) => {
-      if (dateStr.startsWith(currentViewYearMonth)) {
-        const mark = markedDates[dateStr];
-        const shift = mark?.haeShift;
-        const dShift = mark?.dawonShift;
-        const isHol = !!holidays[dateStr];
+    const [vYear, vMonth] = currentViewYearMonth.split('-');
+    let prevY = parseInt(vYear, 10);
+    let prevM = parseInt(vMonth, 10) - 1;
+    if (prevM === 0) {
+      prevM = 12;
+      prevY -= 1;
+    }
+    const prevMonthStr = `${prevY}-${String(prevM).padStart(2, '0')}`;
 
+    Object.keys(markedDates).forEach((dateStr) => {
+      const mark = markedDates[dateStr];
+      const shift = mark?.haeShift;
+      const dShift = mark?.dawonShift;
+      const isHol = !!holidays[dateStr];
+
+      if (dateStr.startsWith(currentViewYearMonth)) {
         if (shift?.id === 'OFF' && dShift?.id === 'OFF') doubleOffCount += 1;
         if (mark?.memo && mark.memo.includes('♥')) dateCount += 1;
+      }
 
+      if (dateStr.startsWith(prevMonthStr)) {
         if (shift) {
           if (shift.ot) totalOtHours += Number(shift.ot);
           if (shift.id === 'GY') {
@@ -769,36 +799,30 @@ export default function App() {
       }
     });
 
-    // 2단계: 변동 수당 (시급 13,839원, 분 단위 계산이나 앱에선 시간 단위(h) 입력을 반영)
-    const otAllowance = Math.round(totalOtHours * HOURLY_WAGE * 1.5); // 잔업수당
-    const normalNightAllowance = Math.round(normalNightCount * 8 * HOURLY_WAGE * 0.5); // 심야수당
-    const holidayNightAllowance = Math.round(holidayNightCount * 8 * HOURLY_WAGE * 2.0); // 특근(1.5) + 특근심야(0.5)
-    const holidayDaySwingAllowance = Math.round(holidayDaySwingCount * 8 * HOURLY_WAGE * 1.5); // 특근수당
+    const otAllowance = Math.round(totalOtHours * HOURLY_WAGE * 1.5);
+    const normalNightAllowance = Math.round(normalNightCount * 8 * HOURLY_WAGE * 0.5);
+    const holidayNightAllowance = Math.round(holidayNightCount * 8 * HOURLY_WAGE * 2.0);
+    const holidayDaySwingAllowance = Math.round(holidayDaySwingCount * 8 * HOURLY_WAGE * 1.5);
 
     const bonus = parseInt(extraBonusInput.replace(/[^0-9]/g, '') || '0', 10);
-
-    // 3단계: 세전 총액
     const grossPay = FIXED_PAY_TOTAL + otAllowance + normalNightAllowance + holidayNightAllowance + holidayDaySwingAllowance + bonus;
 
-    // 4단계: 공제액 차감 (고정비 + 변동비)
-    const employmentInsurance = Math.round(grossPay * 0.009); // 고용보험: 세전 0.9%
+    const employmentInsurance = Math.round(grossPay * 0.009); 
     
-    // 갑근세 + 주민세 (입력값 우선, 없으면 370~425만 구간 추정치 반영)
     let incomeTax = parseInt(taxInput.replace(/[^0-9]/g, ''), 10);
     if (isNaN(incomeTax)) {
       if (grossPay >= 4000000) incomeTax = 165000;
       else if (grossPay >= 3700000) incomeTax = 145000;
-      else incomeTax = Math.round(grossPay * 0.035);
+      else incomeTax = Math.round(grossPay * 0.035); 
     }
-    const localTax = Math.round(incomeTax * 0.1);
+    const localTax = Math.round(incomeTax * 0.1); 
     const mealDed = parseInt(mealInput.replace(/[^0-9]/g, '') || '0', 10);
 
     const totalDeduction = FIXED_DEDUCTIONS + employmentInsurance + incomeTax + localTax + mealDed;
-
-    // 5단계: 최종 차인지급액
     const finalNetPay = grossPay - totalDeduction;
 
     return {
+      prevMonthNum: prevM,
       normalNightCount,
       holidayNightCount,
       holidayDaySwingCount,
@@ -1759,38 +1783,55 @@ export default function App() {
               </View>
             ) : (
               <ScrollView showsVerticalScrollIndicator={false}>
+                {/* 🔒 변경점: 월간 앞뒤 이동 화살표 적용 */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <Text style={{ fontSize: 17, fontWeight: '800', color: theme.text }}>
-                    📊 {currentViewYearMonth} 급여 정산서
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <TouchableOpacity onPress={() => navigateVaultMonth('prev')} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '800', color: theme.primary }}>{'‹'}</Text>
+                    </TouchableOpacity>
+                    <Text style={{ fontSize: 17, fontWeight: '800', color: theme.text }}>
+                      📊 {currentViewYearMonth} 정산서
+                    </Text>
+                    <TouchableOpacity onPress={() => navigateVaultMonth('next')} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '800', color: theme.primary }}>{'›'}</Text>
+                    </TouchableOpacity>
+                  </View>
                   <TouchableOpacity onPress={closeVaultModal}>
-                    <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 13 }}>잠금 및 닫기 🔒</Text>
+                    <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 13 }}>잠금 🔒</Text>
                   </TouchableOpacity>
                 </View>
 
-                {/* 5단계 흐름대로 표시 */}
+                <View style={[styles.salaryHeroBox, { backgroundColor: theme.primarySoft }]}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: theme.primary, marginBottom: 4 }}>
+                    예상 실수령액 (세전 - 세금/사내저축 공제)
+                  </Text>
+                  <Text style={{ fontSize: 24, fontWeight: '900', color: theme.primary }}>
+                    {monthlyStats.finalNetPay.toLocaleString()}원
+                  </Text>
+                </View>
+
                 <View style={styles.statLine}>
-                  <Text style={{ color: theme.subText, fontSize: 13 }}>[1단계] 기본급+전환수당</Text>
+                  <Text style={{ color: theme.text, fontSize: 13, fontWeight: '700' }}>[1단계] 당월 기본급+전환수당</Text>
                   <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>{FIXED_PAY_TOTAL.toLocaleString()}원</Text>
                 </View>
                 
                 <View style={styles.statLine}>
-                  <Text style={{ color: theme.subText, fontSize: 13 }}>[2단계] 잔업수당 ({monthlyStats.totalOtHours}h)</Text>
+                  <Text style={{ color: theme.subText, fontSize: 13 }}>[2단계] 전월({monthlyStats.prevMonthNum}월) 잔업수당 ({monthlyStats.totalOtHours}h)</Text>
                   <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>+{monthlyStats.otAllowance.toLocaleString()}원</Text>
                 </View>
                 <View style={styles.statLine}>
-                  <Text style={{ color: theme.subText, fontSize: 13 }}>[2단계] 심야수당 ({monthlyStats.normalNightCount}회)</Text>
+                  <Text style={{ color: theme.subText, fontSize: 13 }}>[2단계] 전월({monthlyStats.prevMonthNum}월) 심야수당 ({monthlyStats.normalNightCount}회)</Text>
                   <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>+{monthlyStats.normalNightAllowance.toLocaleString()}원</Text>
                 </View>
                 <View style={styles.statLine}>
-                  <Text style={{ color: theme.subText, fontSize: 13 }}>[2단계] 특근수당 ({monthlyStats.holidayDaySwingCount + monthlyStats.holidayNightCount}회)</Text>
+                  <Text style={{ color: theme.subText, fontSize: 13 }}>[2단계] 전월({monthlyStats.prevMonthNum}월) 특근/특근야간 ({monthlyStats.holidayDaySwingCount + monthlyStats.holidayNightCount}회)</Text>
                   <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
                     +{(monthlyStats.holidayDaySwingAllowance + monthlyStats.holidayNightAllowance).toLocaleString()}원
                   </Text>
                 </View>
                 
                 <View style={[styles.statLine, { alignItems: 'center', marginTop: 4 }]}>
-                  <Text style={{ color: theme.subText, fontSize: 13 }}>기타 상여/배려금 직접추가</Text>
+                  <Text style={{ color: theme.subText, fontSize: 13 }}>기타 상여/배려금 추가</Text>
                   <TextInput
                     style={[styles.bonusBox, { color: theme.text, backgroundColor: theme.cardSub, borderColor: theme.border }]}
                     keyboardType="number-pad"
@@ -1810,7 +1851,7 @@ export default function App() {
                 <View style={{ height: 1, backgroundColor: theme.border, marginVertical: 10 }} />
 
                 <View style={styles.statLine}>
-                  <Text style={{ color: '#EF4444', fontSize: 12 }}>[4단계] 고정공제(국민/건강 등)</Text>
+                  <Text style={{ color: '#EF4444', fontSize: 12 }}>[4단계] 고정공제 (국민/건강 등)</Text>
                   <Text style={{ color: '#EF4444', fontSize: 12 }}>-{FIXED_DEDUCTIONS.toLocaleString()}원</Text>
                 </View>
                 <View style={styles.statLine}>
@@ -1818,14 +1859,14 @@ export default function App() {
                   <Text style={{ color: '#EF4444', fontSize: 12 }}>-{monthlyStats.employmentInsurance.toLocaleString()}원</Text>
                 </View>
                 <View style={[styles.statLine, { alignItems: 'center', paddingVertical: 4 }]}>
-                  <Text style={{ color: '#EF4444', fontSize: 12 }}>[4단계] 갑근세+주민세 (추정)</Text>
+                  <Text style={{ color: '#EF4444', fontSize: 12 }}>[4단계] 갑근세+주민세</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <TextInput
                       style={[styles.bonusBox, { color: theme.text, backgroundColor: theme.cardSub, borderColor: theme.border, width: 80 }]}
                       keyboardType="number-pad"
                       value={taxInput}
                       onChangeText={setTaxInput}
-                      placeholder="자동 계산"
+                      placeholder="추정치 표시"
                     />
                     <Text style={{ color: '#EF4444', fontSize: 12 }}>원</Text>
                   </View>
