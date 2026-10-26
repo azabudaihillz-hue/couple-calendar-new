@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   Pressable,
@@ -11,7 +11,11 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { DEFAULT_CYCLE_BASE_DATE } from '../constants/shifts';
+import {
+  DEFAULT_CYCLE_BASE_DATE,
+  DEFAULT_LEFT_NAME,
+  DEFAULT_RIGHT_NAME,
+} from '../constants/shifts';
 import { verifyVaultPin, updateVaultPin } from '../utils/security';
 
 interface SettingsModalProps {
@@ -24,6 +28,9 @@ interface SettingsModalProps {
   cycleBaseDate: string;
   onChangeCycleBaseDate: (newDate: string) => void;
   onOpenVault: () => void;
+  leftName: string;
+  rightName: string;
+  onSaveCoupleNames: (newLeftName: string, newRightName: string) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -36,9 +43,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   cycleBaseDate,
   onChangeCycleBaseDate,
   onOpenVault,
+  leftName,
+  rightName,
+  onSaveCoupleNames,
 }) => {
+  // Couple names state
+  const [leftNameInput, setLeftNameInput] = useState(leftName);
+  const [rightNameInput, setRightNameInput] = useState(rightName);
+
   // Base date state
   const [baseDateInput, setBaseDateInput] = useState(cycleBaseDate);
+
+  useEffect(() => {
+    if (visible) {
+      setLeftNameInput(leftName);
+      setRightNameInput(rightName);
+      setBaseDateInput(cycleBaseDate);
+    }
+  }, [visible, leftName, rightName, cycleBaseDate]);
 
   // PIN change state
   const [showPinChange, setShowPinChange] = useState(false);
@@ -55,6 +77,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const boxBg = isDark ? '#2C2C2E' : '#F2F2F7';
   const primaryColor = isDark ? '#0A84FF' : '#007AFF';
 
+  const handleSaveNames = () => {
+    const cleanLeft = leftNameInput.trim() || DEFAULT_LEFT_NAME;
+    const cleanRight = rightNameInput.trim() || DEFAULT_RIGHT_NAME;
+    setLeftNameInput(cleanLeft);
+    setRightNameInput(cleanRight);
+    onSaveCoupleNames(cleanLeft, cleanRight);
+    Alert.alert('이름 설정 완료', `좌측 이름: ${cleanLeft} / 우측 이름: ${cleanRight}\n달력과 통계에 즉시 반영되었습니다.`);
+  };
+
+  const handleResetNames = () => {
+    setLeftNameInput(DEFAULT_LEFT_NAME);
+    setRightNameInput(DEFAULT_RIGHT_NAME);
+    onSaveCoupleNames(DEFAULT_LEFT_NAME, DEFAULT_RIGHT_NAME);
+    Alert.alert('초기화 완료', `기본 이름(${DEFAULT_LEFT_NAME} / ${DEFAULT_RIGHT_NAME})으로 복구되었습니다.`);
+  };
+
   const handleSaveBaseDate = () => {
     const trimmed = baseDateInput.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
@@ -62,7 +100,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
     onChangeCycleBaseDate(trimmed);
-    Alert.alert('설정 완료', `해의 24일 사이클 기준일이 ${trimmed}로 저장되었습니다.`);
+    Alert.alert('설정 완료', `☀️ ${leftName}의 24일 사이클 기준일이 ${trimmed}로 저장되었습니다.`);
   };
 
   const handleResetBaseDate = () => {
@@ -126,6 +164,73 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ width: '100%' }}>
+            {/* 0. 커플 좌측 / 우측 이름 설정 */}
+            <Text style={[styles.sectionTitle, { color: textColor }]}>
+              👥 커플 표시 이름 설정 (좌측 / 우측)
+            </Text>
+            <View style={[styles.infoCard, { backgroundColor: boxBg }]}>
+              <Text style={[styles.infoCardText, { color: subTextColor }]}>
+                달력 칸, 필터 탭, 근무 통계, 메모 탭에 표시될 두 사람의 이름을 설정합니다.
+              </Text>
+
+              <View style={styles.nameFieldsRow}>
+                <View style={styles.nameFieldCol}>
+                  <Text style={[styles.nameFieldLabel, { color: textColor }]}>☀️ 좌측 이름</Text>
+                  <TextInput
+                    style={[
+                      styles.dateInput,
+                      {
+                        color: textColor,
+                        backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+                        borderColor: dividerColor,
+                      },
+                    ]}
+                    value={leftNameInput}
+                    onChangeText={setLeftNameInput}
+                    placeholder="예: 좌측 이름"
+                    placeholderTextColor={subTextColor}
+                    maxLength={8}
+                  />
+                </View>
+
+                <View style={styles.nameFieldCol}>
+                  <Text style={[styles.nameFieldLabel, { color: textColor }]}>🌙 우측 이름</Text>
+                  <TextInput
+                    style={[
+                      styles.dateInput,
+                      {
+                        color: textColor,
+                        backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+                        borderColor: dividerColor,
+                      },
+                    ]}
+                    value={rightNameInput}
+                    onChangeText={setRightNameInput}
+                    placeholder="예: 우측 이름"
+                    placeholderTextColor={subTextColor}
+                    maxLength={8}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.nameActionRow}>
+                <TouchableOpacity onPress={handleResetNames} style={styles.resetDateBtn}>
+                  <Text style={[styles.resetDateText, { color: subTextColor }]}>
+                    기본값({DEFAULT_LEFT_NAME}/{DEFAULT_RIGHT_NAME}) 초기화
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.saveDateBtn, { backgroundColor: primaryColor }]}
+                  onPress={handleSaveNames}
+                >
+                  <Text style={styles.saveDateBtnText}>이름 저장</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: dividerColor }]} />
+
             {/* 1. 빠른 제어 */}
             <Text style={[styles.sectionTitle, { color: textColor }]}>🎨 화면 & 편의 기능</Text>
             <View style={[styles.settingRow, { backgroundColor: boxBg }]}>
@@ -180,19 +285,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <View style={[styles.divider, { backgroundColor: dividerColor }]} />
 
-            {/* 2. 해의 24일 사이클 기준일 */}
+            {/* 2. 좌측 사용자 24일 사이클 기준일 */}
             <Text style={[styles.sectionTitle, { color: textColor }]}>
-              ☀️ 해(HAE) 24일 사이클 기준일
+              ☀️ {leftName} 24일 사이클 기준일
             </Text>
             <View style={[styles.infoCard, { backgroundColor: boxBg }]}>
               <Text style={[styles.infoCardText, { color: subTextColor }]}>
-                해의 24일 주기(D6-OFF2-S6-OFF2-G6-OFF2)가 시작되는 기준 날짜입니다.{'\n'}
+                {leftName}의 24일 주기(D6-OFF2-S6-OFF2-G6-OFF2)가 시작되는 기준 날짜입니다.{'\n'}
                 <Text style={{ fontWeight: '700', color: primaryColor }}>
                   현재 기준일: {cycleBaseDate}
                 </Text>
               </Text>
               <Text style={[styles.warningNotice, { color: '#FF9500' }]}>
-                ※ 다원은 불규칙 근무이므로 자동 사이클이 없으며, 수동 입력만 유지됩니다.
+                ※ {rightName}은(는) 불규칙 근무이므로 자동 사이클이 없으며, 수동 입력만 유지됩니다.
               </Text>
 
               <View style={styles.inputRow}>
@@ -463,6 +568,25 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 4,
   },
+  nameFieldsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  nameFieldCol: {
+    flex: 1,
+  },
+  nameFieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  nameActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+  },
   dateInput: {
     flex: 1,
     paddingVertical: 8,
@@ -485,7 +609,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   resetDateBtn: {
-    marginTop: 10,
+    marginTop: 6,
     alignSelf: 'flex-end',
   },
   resetDateText: {

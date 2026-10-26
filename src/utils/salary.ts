@@ -6,7 +6,7 @@ export const TAX_RATE = 0.1198;
 export const SAVINGS_DEDUCTION = 250000;
 
 /**
- * 📊 현재 보고 있는 달(currentViewYearMonth: YYYY-MM)의 해(HAE) 급여 & OT 실시간 산출
+ * 📊 현재 보고 있는 달(currentViewYearMonth: YYYY-MM)의 좌측 사용자 급여 & OT 실시간 산출
  * - 통상시급: 13,800원 기준
  * - 평일 연장(OT): 1.5배
  * - 일반 야간(GY): 8시간 × 0.5배
@@ -28,7 +28,7 @@ export const calculateMonthlySalary = (
 
   Object.keys(markedDates).forEach((dateStr) => {
     if (dateStr.startsWith(yearMonth)) {
-      const shift = markedDates[dateStr]?.haeShift;
+      const shift = markedDates[dateStr]?.leftShift ?? markedDates[dateStr]?.haeShift;
       const isHol = !!holidays[dateStr];
       if (shift) {
         if (shift.ot) totalOtHours += Number(shift.ot);

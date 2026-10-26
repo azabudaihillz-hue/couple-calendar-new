@@ -3,26 +3,27 @@ export const config = {
 };
 
 const CYCLE_BASE_DATE = new Date('2026-09-08T00:00:00Z');
+const PROFILE_CONFIG_DATE = '1970-01-02';
 
-const HAE_SHIFTS: Record<string, { label: string; text: string }> = {
+const LEFT_SHIFTS: Record<string, { label: string; text: string }> = {
   DAY: { label: '데이', text: 'D' },
   SW: { label: '스윙', text: 'S' },
   GY: { label: '야간', text: 'G' },
   OFF: { label: '휴무', text: '휴' },
 };
 
-const getCalculatedShift = (dateString: string) => {
+const getCalculatedShift = (dateString: string, baseDate: Date = CYCLE_BASE_DATE) => {
   const target = new Date(dateString + 'T00:00:00Z');
-  const diffTime = target.getTime() - CYCLE_BASE_DATE.getTime();
+  const diffTime = target.getTime() - baseDate.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
   const cycleDay = ((diffDays % 24) + 24) % 24;
 
-  if (cycleDay < 6) return HAE_SHIFTS.DAY;
-  if (cycleDay < 8) return HAE_SHIFTS.OFF;
-  if (cycleDay < 14) return HAE_SHIFTS.SW;
-  if (cycleDay < 16) return HAE_SHIFTS.OFF;
-  if (cycleDay < 22) return HAE_SHIFTS.GY;
-  return HAE_SHIFTS.OFF;
+  if (cycleDay < 6) return LEFT_SHIFTS.DAY;
+  if (cycleDay < 8) return LEFT_SHIFTS.OFF;
+  if (cycleDay < 14) return LEFT_SHIFTS.SW;
+  if (cycleDay < 16) return LEFT_SHIFTS.OFF;
+  if (cycleDay < 22) return LEFT_SHIFTS.GY;
+  return LEFT_SHIFTS.OFF;
 };
 
 const escapeICS = (text: string) => {
@@ -52,6 +53,10 @@ export default async function handler(req: Request) {
     process.env.SUPABASE_ANON_KEY ||
     '';
 
+  let leftName = url.searchParams.get('left') || '좌측';
+  let rightName = url.searchParams.get('right') || '우측';
+  let baseDateObj = CYCLE_BASE_DATE;
+
   const overridesMap: Record<string, any> = {};
 
   if (supabaseUrl && supabaseKey) {
@@ -62,7 +67,26 @@ export default async function handler(req: Request) {
       if (res.ok) {
         const rows = await res.json();
         if (Array.isArray(rows)) {
-          rows.forEach((r) => { if (r && r.date) overridesMap[r.date] = r; });
+          rows.forEach((r) => {
+            if (r && r.date) {
+              if (r.date === PROFILE_CONFIG_DATE && r.memo) {
+                try {
+                  const cfg = JSON.parse(r.memo);
+                  if (!url.searchParams.get('left') && cfg.leftName?.trim()) {
+                    leftName = cfg.leftName.trim();
+                  }
+                  if (!url.searchParams.get('right') && cfg.rightName?.trim()) {
+                    rightName = cfg.rightName.trim();
+                  }
+                  if (cfg.cycleBaseDate && /^\d{4}-\d{2}-\d{2}$/.test(cfg.cycleBaseDate)) {
+                    baseDateObj = new Date(cfg.cycleBaseDate + 'T00:00:00Z');
+                  }
+                } catch (e) {}
+                return;
+              }
+              overridesMap[r.date] = r;
+            }
+          });
         }
       }
     } catch (e) {}
@@ -78,17 +102,17 @@ export default async function handler(req: Request) {
     const dateStr = target.toISOString().split('T')[0];
     const row = overridesMap[dateStr] || {};
 
-    const haeShift = row.hae_shift || getCalculatedShift(dateStr);
-    const dawonShift = row.dawon_shift || null;
+    const leftShift = row.hae_shift || getCalculatedShift(dateStr, baseDateObj);
+    const rightShift = row.dawon_shift || null;
     const memo = (row.memo || '').trim();
 
-    const haeText = `${haeShift.text}${haeShift.ot ? `(+${haeShift.ot})` : ''}`;
-    const dawonText = dawonShift ? `${dawonShift.text}${dawonShift.ot ? `(+${dawonShift.ot})` : ''}` : '-';
+    const leftText = `${leftShift.text}${leftShift.ot ? `(+${leftShift.ot})` : ''}`;
+    const rightText = rightShift ? `${rightShift.text}${rightShift.ot ? `(+${rightShift.ot})` : ''}` : '-';
 
-    const isDoubleOff = haeShift.id === 'OFF' && dawonShift?.id === 'OFF';
+    const isDoubleOff = leftShift.id === 'OFF' && rightShift?.id === 'OFF';
     const isDateDay = memo.includes('♥') || memo.includes('데이트');
 
-    let summary = `[해:${haeText} | 다원:${dawonText}]`;
+    let summary = `[${leftName}:${leftText} | ${rightName}:${rightText}]`;
     if (isDateDay) {
       const cleanMemo = escapeSummary(memo.replace('♥', '').trim());
       summary = `❤️데이트 ${cleanMemo ? `(${cleanMemo}) ` : ''}${summary}`;
@@ -99,8 +123,8 @@ export default async function handler(req: Request) {
     }
 
     const descLines = [
-      `해 근무: ${haeShift.label}${haeShift.ot ? ` + OT ${haeShift.ot}시간` : ''}`,
-      `다원 근무: ${dawonShift ? dawonShift.label + (dawonShift.ot ? ` + OT ${dawonShift.ot}시간` : '') : '미입력'}`,
+      `${leftName} 근무: ${leftShift.label}${leftShift.ot ? ` + OT ${leftShift.ot}시간` : ''}`,
+      `${rightName} 근무: ${rightShift ? rightShift.label + (rightShift.ot ? ` + OT ${rightShift.ot}시간` : '') : '미입력'}`,
     ];
     if (memo) descLines.push(`공용 메모: ${escapeICS(memo)}`);
 

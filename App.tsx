@@ -12,10 +12,12 @@ import {
   Platform,
   ActivityIndicator,
   Linking,
+  Alert,
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import { verifyVaultPin, checkVaultLockStatus, LockStatus } from './src/utils/security';
 
 LocaleConfig.locales['kr'] = {
   monthNames: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
@@ -29,6 +31,10 @@ LocaleConfig.defaultLocale = 'kr';
 const CYCLE_BASE_DATE = new Date('2026-09-08T00:00:00Z');
 const COUPLE_START_DATE = new Date('2026-06-26T00:00:00Z');
 const HISTORY_SYNC_DATE = '1970-01-01';
+const PROFILE_CONFIG_DATE = '1970-01-02';
+
+const DEFAULT_LEFT_NAME = '좌측';
+const DEFAULT_RIGHT_NAME = '우측';
 
 // [1단계] 기본 고정수당 확정 상수
 const BASE_PAY = 2680910;
@@ -41,7 +47,6 @@ const HOURLY_WAGE = 13839; // 통상시급
 // [4단계] 고정 공제 합계 상수
 const FIXED_DEDUCTIONS = 597570; // 국민연금+건보+장기요양+개인연금+사우회비
 
-const ADMIN_PIN = '970045';
 const DEFAULT_LAT = 37.50;
 const DEFAULT_LON = 126.85;
 
@@ -83,14 +88,14 @@ const DEFAULT_HOLIDAYS: Record<string, string> = {
   '2030-10-03': '개천절', '2030-10-09': '한글날', '2030-12-25': '성탄절',
 };
 
-const HAE_SHIFTS = {
+const LEFT_SHIFTS = {
   DAY: { id: 'DAY', label: '데이', text: 'D', color: '#FEF08A', textColor: '#854D0E' },
   SW:  { id: 'SW', label: '스윙', text: 'S', color: '#BFDBFE', textColor: '#1E40AF' },
   GY:  { id: 'GY', label: '야간', text: 'G', color: '#E4E4E7', textColor: '#27272A' },
   OFF: { id: 'OFF', label: '휴무', text: '휴', color: '#FECDD3', textColor: '#9F1239' },
 };
 
-const DAWON_SHIFTS = {
+const RIGHT_SHIFTS = {
   DAY: { id: 'DAY', label: '데이', text: 'D', color: '#FEF08A', textColor: '#854D0E' },
   EVE: { id: 'EVE', label: '이브닝', text: 'E', color: '#E9D5FF', textColor: '#581C87' },
   SW:  { id: 'SW', label: '스윙', text: 'S', color: '#BFDBFE', textColor: '#1E40AF' },
@@ -116,12 +121,12 @@ const getCalculatedShift = (dateString: string) => {
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
   const cycleDay = ((diffDays % 24) + 24) % 24;
 
-  if (cycleDay < 6) return HAE_SHIFTS.DAY;
-  if (cycleDay < 8) return HAE_SHIFTS.OFF;
-  if (cycleDay < 14) return HAE_SHIFTS.SW;
-  if (cycleDay < 16) return HAE_SHIFTS.OFF;
-  if (cycleDay < 22) return HAE_SHIFTS.GY;
-  return HAE_SHIFTS.OFF;
+  if (cycleDay < 6) return LEFT_SHIFTS.DAY;
+  if (cycleDay < 8) return LEFT_SHIFTS.OFF;
+  if (cycleDay < 14) return LEFT_SHIFTS.SW;
+  if (cycleDay < 16) return LEFT_SHIFTS.OFF;
+  if (cycleDay < 22) return LEFT_SHIFTS.GY;
+  return LEFT_SHIFTS.OFF;
 };
 
 const getTodayString = () => {
@@ -164,28 +169,34 @@ const mergeHistoryLists = (listA: any[], listB: any[]) => {
 };
 
 export default function App() {
-  const todayStr = getTodayString();
+  const [todayStr, setTodayStr] = useState<string>(() => getTodayString());
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [markedDates, setMarkedDates] = useState<any>({});
 
-  const [mainTab, setMainTab] = useState<'calendar' | 'dday' | 'activity' | 'settings'>('calendar');
-  const [calendarFilter, setCalendarFilter] = useState<'ALL' | 'TOGETHER' | 'HAE' | 'DAWON'>('ALL');
+  // 👥 좌측 이름 / 우측 이름 설정 상태
+  const [leftName, setLeftName] = useState<string>(DEFAULT_LEFT_NAME);
+  const [rightName, setRightName] = useState<string>(DEFAULT_RIGHT_NAME);
+  const [leftNameInput, setLeftNameInput] = useState<string>(DEFAULT_LEFT_NAME);
+  const [rightNameInput, setRightNameInput] = useState<string>(DEFAULT_RIGHT_NAME);
 
-  const [haeOverrides, setHaeOverrides] = useState<any>({});
-  const [dawonOverrides, setDawonOverrides] = useState<any>({});
+  const [mainTab, setMainTab] = useState<'calendar' | 'dday' | 'activity' | 'settings'>('calendar');
+  const [calendarFilter, setCalendarFilter] = useState<'ALL' | 'TOGETHER' | 'LEFT' | 'RIGHT'>('ALL');
+
+  const [leftOverrides, setLeftOverrides] = useState<any>({});
+  const [rightOverrides, setRightOverrides] = useState<any>({});
   const [memos, setMemos] = useState<any>({});
-  const [haeMemos, setHaeMemos] = useState<any>({});
-  const [dawonMemos, setDawonMemos] = useState<any>({});
+  const [leftMemos, setLeftMemos] = useState<any>({});
+  const [rightMemos, setRightMemos] = useState<any>({});
 
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [editModalVisible, setEditModalVisible] = useState(false);
 
   const [memoInput, setMemoInput] = useState('');
-  const [haeMemoInput, setHaeMemoInput] = useState('');
-  const [dawonMemoInput, setDawonMemoInput] = useState('');
-  const [activeMemoTab, setActiveMemoTab] = useState<'공용' | '해' | '다원'>('공용');
+  const [leftMemoInput, setLeftMemoInput] = useState('');
+  const [rightMemoInput, setRightMemoInput] = useState('');
+  const [activeMemoTab, setActiveMemoTab] = useState<'PUBLIC' | 'LEFT' | 'RIGHT'>('PUBLIC');
 
   const [isDark, setIsDark] = useState(false);
   const [dDayText, setDDayText] = useState('');
@@ -201,8 +212,10 @@ export default function App() {
   const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [isCheckingPin, setIsCheckingPin] = useState(false);
+  const [lockStatus, setLockStatus] = useState<LockStatus>({ isLocked: false, remainingSeconds: 0 });
   const [currentViewYearMonth, setCurrentViewYearMonth] = useState(() => todayStr.slice(0, 7));
-  
+
   const [extraBonusInput, setExtraBonusInput] = useState('0');
   const [taxInput, setTaxInput] = useState('');
   const [mealInput, setMealInput] = useState('5000');
@@ -223,6 +236,15 @@ export default function App() {
     todayCircle: isDark ? '#F43F5E' : '#111827',
   };
 
+  // 자정 경과 시 오늘 날짜 자동 갱신
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const nowStr = getTodayString();
+      setTodayStr((prev) => (prev !== nowStr ? nowStr : prev));
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   const coupleDaysCount = Math.floor((new Date(todayStr + 'T00:00:00Z').getTime() - COUPLE_START_DATE.getTime()) / 86400000) + 1;
 
   const syncHistoryToSupabase = async (historyArray: any[]) => {
@@ -241,6 +263,47 @@ export default function App() {
     } catch (e) {
       console.warn('History cloud sync exception:', e);
     }
+  };
+
+  const syncProfileNamesToSupabase = async (newLeft: string, newRight: string) => {
+    const configPayload = { leftName: newLeft, rightName: newRight };
+    try {
+      await AsyncStorage.setItem('@couple_profile_config', JSON.stringify(configPayload));
+    } catch {}
+    try {
+      if (!supabase) return;
+      const payload = {
+        date: PROFILE_CONFIG_DATE,
+        hae_shift: null,
+        dawon_shift: null,
+        memo: JSON.stringify(configPayload),
+        hae_memo: '',
+        dawon_memo: '',
+      };
+      await supabase.from('couple_calendar').upsert(payload, { onConflict: 'date' });
+    } catch (e) {
+      console.warn('Profile sync exception:', e);
+    }
+  };
+
+  const handleSaveCoupleNames = () => {
+    const cleanLeft = leftNameInput.trim() || DEFAULT_LEFT_NAME;
+    const cleanRight = rightNameInput.trim() || DEFAULT_RIGHT_NAME;
+    setLeftName(cleanLeft);
+    setRightName(cleanRight);
+    setLeftNameInput(cleanLeft);
+    setRightNameInput(cleanRight);
+    syncProfileNamesToSupabase(cleanLeft, cleanRight);
+    Alert.alert('이름 설정 완료', `좌측 이름: ${cleanLeft} / 우측 이름: ${cleanRight}\n캘린더와 모든 탭에 반영되었습니다.`);
+  };
+
+  const handleResetCoupleNames = () => {
+    setLeftName(DEFAULT_LEFT_NAME);
+    setRightName(DEFAULT_RIGHT_NAME);
+    setLeftNameInput(DEFAULT_LEFT_NAME);
+    setRightNameInput(DEFAULT_RIGHT_NAME);
+    syncProfileNamesToSupabase(DEFAULT_LEFT_NAME, DEFAULT_RIGHT_NAME);
+    Alert.alert('초기화 완료', `기본 이름(${DEFAULT_LEFT_NAME} / ${DEFAULT_RIGHT_NAME})으로 초기화되었습니다.`);
   };
 
   const recordMemoChangesBatch = (
@@ -276,7 +339,7 @@ export default function App() {
     setMemoHistory((prev) => {
       const updated = mergeHistoryLists(newLogs, prev);
       AsyncStorage.setItem('@memo_history', JSON.stringify(updated)).catch(() => {});
-      syncHistoryToSupabase(updated); 
+      syncHistoryToSupabase(updated);
       return updated;
     });
   };
@@ -338,7 +401,7 @@ export default function App() {
       const rainWarn = Math.max(h14.pop, h22.pop) >= 50 ? ' · ☔우산 필수' : '';
       return `${personName}(${shift.label}) 출근 14시 ${h14.temp}°C → 퇴근 22시 ${h22.temp}°C (강수 ${Math.max(h14.pop, h22.pop)}%)${rainWarn}`;
     }
-    if (shift.id === 'GY') {
+    if (shift.id === 'GY' || shift.id === 'NI') {
       const rainWarn = Math.max(h22.pop, h06.pop) >= 50 ? ' · ☔우산 필수' : '';
       return `${personName}(야간) 출근 22시 ${h22.temp}°C → 퇴근 06시 ${h06.temp}°C (강수 ${Math.max(h22.pop, h06.pop)}%)${rainWarn}`;
     }
@@ -378,10 +441,28 @@ export default function App() {
 
     let localHist: any[] = [];
     try {
-      const rawLocal = await AsyncStorage.getItem('@memo_history');
+      const [rawLocal, rawProfile, rawTheme] = await Promise.all([
+        AsyncStorage.getItem('@memo_history'),
+        AsyncStorage.getItem('@couple_profile_config'),
+        AsyncStorage.getItem('@app_theme_dark'),
+      ]);
       if (rawLocal) {
         const parsed = JSON.parse(rawLocal);
         if (Array.isArray(parsed)) localHist = parsed;
+      }
+      if (rawProfile) {
+        const parsedProfile = JSON.parse(rawProfile);
+        if (parsedProfile?.leftName?.trim()) {
+          setLeftName(parsedProfile.leftName.trim());
+          setLeftNameInput(parsedProfile.leftName.trim());
+        }
+        if (parsedProfile?.rightName?.trim()) {
+          setRightName(parsedProfile.rightName.trim());
+          setRightNameInput(parsedProfile.rightName.trim());
+        }
+      }
+      if (rawTheme !== null) {
+        setIsDark(rawTheme === 'true');
       }
     } catch {}
 
@@ -403,11 +484,11 @@ export default function App() {
       }
 
       if (data) {
-        const hOver: any = {};
-        const dOver: any = {};
+        const lOver: any = {};
+        const rOver: any = {};
         const memoMap: any = {};
-        const hMemoMap: any = {};
-        const dMemoMap: any = {};
+        const lMemoMap: any = {};
+        const rMemoMap: any = {};
         let remoteHist: any[] = [];
 
         data.forEach((row) => {
@@ -420,24 +501,41 @@ export default function App() {
             }
             return;
           }
+          if (row.date === PROFILE_CONFIG_DATE) {
+            if (row.memo) {
+              try {
+                const remoteCfg = JSON.parse(row.memo);
+                if (remoteCfg?.leftName?.trim()) {
+                  setLeftName(remoteCfg.leftName.trim());
+                  setLeftNameInput(remoteCfg.leftName.trim());
+                }
+                if (remoteCfg?.rightName?.trim()) {
+                  setRightName(remoteCfg.rightName.trim());
+                  setRightNameInput(remoteCfg.rightName.trim());
+                }
+                AsyncStorage.setItem('@couple_profile_config', JSON.stringify(remoteCfg)).catch(() => {});
+              } catch {}
+            }
+            return;
+          }
 
-          if (row.hae_shift) hOver[row.date] = row.hae_shift;
-          if (row.dawon_shift) dOver[row.date] = row.dawon_shift;
+          if (row.hae_shift) lOver[row.date] = row.hae_shift;
+          if (row.dawon_shift) rOver[row.date] = row.dawon_shift;
           if (row.memo) memoMap[row.date] = row.memo;
-          if (row.hae_memo) hMemoMap[row.date] = row.hae_memo;
-          if (row.dawon_memo) dMemoMap[row.date] = row.dawon_memo;
+          if (row.hae_memo) lMemoMap[row.date] = row.hae_memo;
+          if (row.dawon_memo) rMemoMap[row.date] = row.dawon_memo;
         });
 
-        setHaeOverrides(hOver);
-        setDawonOverrides(dOver);
+        setLeftOverrides(lOver);
+        setRightOverrides(rOver);
         setMemos(memoMap);
-        setHaeMemos(hMemoMap);
-        setDawonMemos(dMemoMap);
+        setLeftMemos(lMemoMap);
+        setRightMemos(rMemoMap);
 
         const mergedHist = mergeHistoryLists(remoteHist, localHist);
         setMemoHistory(mergedHist);
         AsyncStorage.setItem('@memo_history', JSON.stringify(mergedHist)).catch(() => {});
-        
+
         if (mergedHist.length > remoteHist.length) {
           syncHistoryToSupabase(mergedHist);
         }
@@ -476,12 +574,29 @@ export default function App() {
             }
             return;
           }
+          if (newRow.date === PROFILE_CONFIG_DATE) {
+            if (newRow.memo) {
+              try {
+                const incomingCfg = JSON.parse(newRow.memo);
+                if (incomingCfg?.leftName?.trim()) {
+                  setLeftName(incomingCfg.leftName.trim());
+                  setLeftNameInput(incomingCfg.leftName.trim());
+                }
+                if (incomingCfg?.rightName?.trim()) {
+                  setRightName(incomingCfg.rightName.trim());
+                  setRightNameInput(incomingCfg.rightName.trim());
+                }
+                AsyncStorage.setItem('@couple_profile_config', JSON.stringify(incomingCfg)).catch(() => {});
+              } catch {}
+            }
+            return;
+          }
 
-          setHaeOverrides((prev: any) => ({ ...prev, [newRow.date]: newRow.hae_shift }));
-          setDawonOverrides((prev: any) => ({ ...prev, [newRow.date]: newRow.dawon_shift }));
+          setLeftOverrides((prev: any) => ({ ...prev, [newRow.date]: newRow.hae_shift }));
+          setRightOverrides((prev: any) => ({ ...prev, [newRow.date]: newRow.dawon_shift }));
           setMemos((prev: any) => ({ ...prev, [newRow.date]: newRow.memo }));
-          setHaeMemos((prev: any) => ({ ...prev, [newRow.date]: newRow.hae_memo }));
-          setDawonMemos((prev: any) => ({ ...prev, [newRow.date]: newRow.dawon_memo }));
+          setLeftMemos((prev: any) => ({ ...prev, [newRow.date]: newRow.hae_memo }));
+          setRightMemos((prev: any) => ({ ...prev, [newRow.date]: newRow.dawon_memo }));
         }
       })
       .subscribe();
@@ -505,18 +620,18 @@ export default function App() {
       const target = new Date(base.getTime() + i * 86400000);
       const dateStr = target.toISOString().split('T')[0];
 
-      const haeShift = haeOverrides[dateStr] || getCalculatedShift(dateStr);
-      const dawonShift = dawonOverrides[dateStr] || null;
+      const leftShift = leftOverrides[dateStr] || getCalculatedShift(dateStr);
+      const rightShift = rightOverrides[dateStr] || null;
       const memo = memos[dateStr] || '';
-      const hMemo = haeMemos[dateStr] || '';
-      const dMemo = dawonMemos[dateStr] || '';
+      const lMemo = leftMemos[dateStr] || '';
+      const rMemo = rightMemos[dateStr] || '';
 
       const month = target.getUTCMonth() + 1;
       const day = target.getUTCDate();
       let annivText = '';
 
-      if (month === 7 && day === 13) annivText = '🎂 해 생일';
-      else if (month === 11 && day === 13) annivText = '🎂 다원 생일';
+      if (month === 7 && day === 13) annivText = `🎂 ${leftName} 생일`;
+      else if (month === 11 && day === 13) annivText = `🎂 ${rightName} 생일`;
       else if (month === 6 && day === 26) {
         const years = target.getUTCFullYear() - COUPLE_START_DATE.getUTCFullYear();
         if (years > 0) annivText = `🎉 ${years}주년`;
@@ -525,14 +640,14 @@ export default function App() {
         const diffAnnivDays = Math.floor(diffAnnivTime / 86400000) + 1;
         if (diffAnnivDays > 0 && diffAnnivDays % 100 === 0) annivText = `❤️ ${diffAnnivDays}일`;
       }
-      marks[dateStr] = { haeShift, dawonShift, memo, hMemo, dMemo, annivText };
+      marks[dateStr] = { leftShift, rightShift, memo, lMemo, rMemo, annivText };
     }
     setMarkedDates(marks);
 
     let closestDday: number | null = null;
     let minDiff = Infinity;
     Object.keys(memos).forEach((date) => {
-      if (memos[date].includes('♥') && date >= todayStr) {
+      if (memos[date]?.includes('♥') && date >= todayStr) {
         const diffDays = Math.floor((new Date(date).getTime() - new Date(todayStr).getTime()) / 86400000);
         if (diffDays < minDiff) {
           minDiff = diffDays;
@@ -543,18 +658,18 @@ export default function App() {
     if (closestDday === 0) setDDayText('오늘 데이트 ♥');
     else if (closestDday !== null) setDDayText(`데이트 D-${closestDday}`);
     else setDDayText('');
-  }, [haeOverrides, dawonOverrides, memos, haeMemos, dawonMemos, isLoading, todayStr, holidays]);
+  }, [leftOverrides, rightOverrides, memos, leftMemos, rightMemos, isLoading, todayStr, holidays, leftName, rightName]);
 
-  const syncToSupabase = async (date: string, hOver: any, dOver: any, mem: string, hMem: string, dMem: string) => {
+  const syncToSupabase = async (date: string, lOver: any, rOver: any, mem: string, lMem: string, rMem: string) => {
     try {
       if (!supabase) return;
       const payload = {
         date: date,
-        hae_shift: hOver ? JSON.parse(JSON.stringify(hOver)) : null,
-        dawon_shift: dOver ? JSON.parse(JSON.stringify(dOver)) : null,
+        hae_shift: lOver ? JSON.parse(JSON.stringify(lOver)) : null,
+        dawon_shift: rOver ? JSON.parse(JSON.stringify(rOver)) : null,
         memo: mem || '',
-        hae_memo: hMem || '',
-        dawon_memo: dMem || '',
+        hae_memo: lMem || '',
+        dawon_memo: rMem || '',
       };
       const { error } = await supabase.from('couple_calendar').upsert(payload, { onConflict: 'date' });
       if (error) console.warn('Sync error:', error);
@@ -572,73 +687,73 @@ export default function App() {
   const onSelectDay = (dateString: string) => {
     setSelectedDate(dateString);
     setMemoInput(memos[dateString] || '');
-    setHaeMemoInput(haeMemos[dateString] || '');
-    setDawonMemoInput(dawonMemos[dateString] || '');
+    setLeftMemoInput(leftMemos[dateString] || '');
+    setRightMemoInput(rightMemos[dateString] || '');
   };
 
   const openEditSheet = (targetDate?: string) => {
     const d = targetDate || selectedDate;
     setSelectedDate(d);
     setMemoInput(memos[d] || '');
-    setHaeMemoInput(haeMemos[d] || '');
-    setDawonMemoInput(dawonMemos[d] || '');
-    setActiveMemoTab('공용');
+    setLeftMemoInput(leftMemos[d] || '');
+    setRightMemoInput(rightMemos[d] || '');
+    setActiveMemoTab('PUBLIC');
     setEditModalVisible(true);
   };
 
   const addDateMemo = () => {
     const newText = memoInput.includes('♥') ? memoInput.replace('♥', '').trim() : memoInput ? `${memoInput} ♥` : '♥';
     setMemoInput(newText);
-    setActiveMemoTab('공용');
+    setActiveMemoTab('PUBLIC');
   };
 
   const closeModalAndSave = () => {
     setEditModalVisible(false);
 
     recordMemoChangesBatch(selectedDate, [
-      { tab: '공용', oldText: memos[selectedDate], newText: memoInput },
-      { tab: '해', oldText: haeMemos[selectedDate], newText: haeMemoInput },
-      { tab: '다원', oldText: dawonMemos[selectedDate], newText: dawonMemoInput },
+      { tab: 'PUBLIC', oldText: memos[selectedDate], newText: memoInput },
+      { tab: 'LEFT', oldText: leftMemos[selectedDate], newText: leftMemoInput },
+      { tab: 'RIGHT', oldText: rightMemos[selectedDate], newText: rightMemoInput },
     ]);
 
     const newMemos = { ...memos };
-    const newHaeMemos = { ...haeMemos };
-    const newDawonMemos = { ...dawonMemos };
+    const newLeftMemos = { ...leftMemos };
+    const newRightMemos = { ...rightMemos };
 
     if (memoInput.trim() === '') delete newMemos[selectedDate];
     else newMemos[selectedDate] = memoInput;
-    if (haeMemoInput.trim() === '') delete newHaeMemos[selectedDate];
-    else newHaeMemos[selectedDate] = haeMemoInput;
-    if (dawonMemoInput.trim() === '') delete newDawonMemos[selectedDate];
-    else newDawonMemos[selectedDate] = dawonMemoInput;
+    if (leftMemoInput.trim() === '') delete newLeftMemos[selectedDate];
+    else newLeftMemos[selectedDate] = leftMemoInput;
+    if (rightMemoInput.trim() === '') delete newRightMemos[selectedDate];
+    else newRightMemos[selectedDate] = rightMemoInput;
 
     setMemos(newMemos);
-    setHaeMemos(newHaeMemos);
-    setDawonMemos(newDawonMemos);
-    syncToSupabase(selectedDate, haeOverrides[selectedDate], dawonOverrides[selectedDate], memoInput, haeMemoInput, dawonMemoInput);
+    setLeftMemos(newLeftMemos);
+    setRightMemos(newRightMemos);
+    syncToSupabase(selectedDate, leftOverrides[selectedDate], rightOverrides[selectedDate], memoInput, leftMemoInput, rightMemoInput);
   };
 
   const navigateDate = (direction: 'prev' | 'next') => {
     recordMemoChangesBatch(selectedDate, [
-      { tab: '공용', oldText: memos[selectedDate], newText: memoInput },
-      { tab: '해', oldText: haeMemos[selectedDate], newText: haeMemoInput },
-      { tab: '다원', oldText: dawonMemos[selectedDate], newText: dawonMemoInput },
+      { tab: 'PUBLIC', oldText: memos[selectedDate], newText: memoInput },
+      { tab: 'LEFT', oldText: leftMemos[selectedDate], newText: leftMemoInput },
+      { tab: 'RIGHT', oldText: rightMemos[selectedDate], newText: rightMemoInput },
     ]);
 
     const newMemos = { ...memos };
-    const newHaeMemos = { ...haeMemos };
-    const newDawonMemos = { ...dawonMemos };
+    const newLeftMemos = { ...leftMemos };
+    const newRightMemos = { ...rightMemos };
     if (memoInput.trim() === '') delete newMemos[selectedDate];
     else newMemos[selectedDate] = memoInput;
-    if (haeMemoInput.trim() === '') delete newHaeMemos[selectedDate];
-    else newHaeMemos[selectedDate] = haeMemoInput;
-    if (dawonMemoInput.trim() === '') delete newDawonMemos[selectedDate];
-    else newDawonMemos[selectedDate] = dawonMemoInput;
+    if (leftMemoInput.trim() === '') delete newLeftMemos[selectedDate];
+    else newLeftMemos[selectedDate] = leftMemoInput;
+    if (rightMemoInput.trim() === '') delete newRightMemos[selectedDate];
+    else newRightMemos[selectedDate] = rightMemoInput;
 
     setMemos(newMemos);
-    setHaeMemos(newHaeMemos);
-    setDawonMemos(newDawonMemos);
-    syncToSupabase(selectedDate, haeOverrides[selectedDate], dawonOverrides[selectedDate], memoInput, haeMemoInput, dawonMemoInput);
+    setLeftMemos(newLeftMemos);
+    setRightMemos(newRightMemos);
+    syncToSupabase(selectedDate, leftOverrides[selectedDate], rightOverrides[selectedDate], memoInput, leftMemoInput, rightMemoInput);
 
     const current = new Date(selectedDate + 'T00:00:00Z');
     if (direction === 'prev') current.setUTCDate(current.getUTCDate() - 1);
@@ -647,54 +762,77 @@ export default function App() {
     const newDateStr = current.toISOString().split('T')[0];
     setSelectedDate(newDateStr);
     setMemoInput(newMemos[newDateStr] || '');
-    setHaeMemoInput(newHaeMemos[newDateStr] || '');
-    setDawonMemoInput(newDawonMemos[newDateStr] || '');
-  };
+    setLeftMemoInput(newLeftMemos[newDateStr] || '');
+    setRightMemoInput(newRightMemos[newDateStr] || '');
 
-  const setOT = (person: 'hae' | 'dawon', otHours: number) => {
-    if (person === 'hae') {
-      const current = haeOverrides[selectedDate] || getCalculatedShift(selectedDate);
-      const updated = { ...current, ot: current.ot === otHours ? 0 : otHours };
-      setHaeOverrides({ ...haeOverrides, [selectedDate]: updated });
-      syncToSupabase(selectedDate, updated, dawonOverrides[selectedDate], memoInput, haeMemoInput, dawonMemoInput);
-    } else {
-      if (!dawonOverrides[selectedDate]) return;
-      const updated = { ...dawonOverrides[selectedDate], ot: dawonOverrides[selectedDate].ot === otHours ? 0 : otHours };
-      setDawonOverrides({ ...dawonOverrides, [selectedDate]: updated });
-      syncToSupabase(selectedDate, haeOverrides[selectedDate], updated, memoInput, haeMemoInput, dawonMemoInput);
+    const targetYm = newDateStr.slice(0, 7);
+    if (targetYm !== currentViewYearMonth) {
+      setCurrentViewYearMonth(targetYm);
+      setCalendarKey((prev) => prev + 1);
     }
   };
 
-  const updateHaeShift = (shift: any) => {
-    setHaeOverrides({ ...haeOverrides, [selectedDate]: shift });
-    syncToSupabase(selectedDate, shift, dawonOverrides[selectedDate], memoInput, haeMemoInput, dawonMemoInput);
+  const setOT = (person: 'left' | 'right', otHours: number) => {
+    if (person === 'left') {
+      const current = leftOverrides[selectedDate] || getCalculatedShift(selectedDate);
+      const updated = { ...current, ot: current.ot === otHours ? 0 : otHours };
+      setLeftOverrides({ ...leftOverrides, [selectedDate]: updated });
+      syncToSupabase(selectedDate, updated, rightOverrides[selectedDate], memoInput, leftMemoInput, rightMemoInput);
+    } else {
+      if (!rightOverrides[selectedDate]) return;
+      const updated = { ...rightOverrides[selectedDate], ot: rightOverrides[selectedDate].ot === otHours ? 0 : otHours };
+      setRightOverrides({ ...rightOverrides, [selectedDate]: updated });
+      syncToSupabase(selectedDate, leftOverrides[selectedDate], updated, memoInput, leftMemoInput, rightMemoInput);
+    }
   };
 
-  const clearHaeShift = () => {
-    const newO = { ...haeOverrides };
+  const updateLeftShift = (shift: any) => {
+    setLeftOverrides({ ...leftOverrides, [selectedDate]: shift });
+    syncToSupabase(selectedDate, shift, rightOverrides[selectedDate], memoInput, leftMemoInput, rightMemoInput);
+  };
+
+  const clearLeftShift = () => {
+    const newO = { ...leftOverrides };
     delete newO[selectedDate];
-    setHaeOverrides(newO);
-    syncToSupabase(selectedDate, null, dawonOverrides[selectedDate], memoInput, haeMemoInput, dawonMemoInput);
+    setLeftOverrides(newO);
+    syncToSupabase(selectedDate, null, rightOverrides[selectedDate], memoInput, leftMemoInput, rightMemoInput);
   };
 
-  const updateDawonShift = (shift: any) => {
-    setDawonOverrides({ ...dawonOverrides, [selectedDate]: shift });
-    syncToSupabase(selectedDate, haeOverrides[selectedDate], shift, memoInput, haeMemoInput, dawonMemoInput);
+  const updateRightShift = (shift: any) => {
+    setRightOverrides({ ...rightOverrides, [selectedDate]: shift });
+    syncToSupabase(selectedDate, leftOverrides[selectedDate], shift, memoInput, leftMemoInput, rightMemoInput);
   };
 
-  const clearDawonShift = () => {
-    const newD = { ...dawonOverrides };
+  const clearRightShift = () => {
+    const newD = { ...rightOverrides };
     delete newD[selectedDate];
-    setDawonOverrides(newD);
-    syncToSupabase(selectedDate, haeOverrides[selectedDate], null, memoInput, haeMemoInput, dawonMemoInput);
+    setRightOverrides(newD);
+    syncToSupabase(selectedDate, leftOverrides[selectedDate], null, memoInput, leftMemoInput, rightMemoInput);
   };
 
-  // 🔒 급여 대시보드 조작 및 월 이동 화살표 함수
-  const openVaultModal = () => {
+  // 🔒 급여 대시보드 조작 및 월 이동 화살표 함수 (SHA-256 해시 검증 + 5회 잠금 보호)
+  useEffect(() => {
+    let timer: any = null;
+    if (vaultModalVisible && lockStatus.isLocked && lockStatus.remainingSeconds > 0) {
+      timer = setInterval(() => {
+        setLockStatus((prev) => {
+          if (prev.remainingSeconds <= 1) return { isLocked: false, remainingSeconds: 0 };
+          return { ...prev, remainingSeconds: prev.remainingSeconds - 1 };
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [vaultModalVisible, lockStatus.isLocked]);
+
+  const openVaultModal = async () => {
     setIsVaultUnlocked(false);
     setPinInput('');
     setPinError(false);
     setVaultModalVisible(true);
+    const status = await checkVaultLockStatus();
+    setLockStatus(status);
   };
 
   const closeVaultModal = () => {
@@ -704,13 +842,21 @@ export default function App() {
     setPinError(false);
   };
 
-  const handlePinSubmit = (text: string) => {
+  const handlePinSubmit = async (text: string) => {
     setPinInput(text);
     setPinError(false);
-    if (text === ADMIN_PIN) {
-      setIsVaultUnlocked(true);
-    } else if (text.length >= 6) {
-      setPinError(true);
+    if (text.length === 6) {
+      setIsCheckingPin(true);
+      const isValid = await verifyVaultPin(text);
+      setIsCheckingPin(false);
+      if (isValid) {
+        setIsVaultUnlocked(true);
+        setPinInput('');
+      } else {
+        setPinError(true);
+        const newLock = await checkVaultLockStatus();
+        setLockStatus(newLock);
+      }
     }
   };
 
@@ -742,8 +888,15 @@ export default function App() {
         : 'https://couple-calendar-2026.vercel.app';
     const sbUrl = (supabase as any)?.supabaseUrl || '';
     const sbKey = (supabase as any)?.supabaseKey || '';
-    const query = sbUrl && sbKey ? `?u=${encodeURIComponent(sbUrl)}&k=${encodeURIComponent(sbKey)}` : '';
-    const httpsUrl = `${origin}/api/calendar${query}`;
+    const params = new URLSearchParams();
+    if (sbUrl && sbKey) {
+      params.set('u', sbUrl);
+      params.set('k', sbKey);
+    }
+    params.set('left', leftName);
+    params.set('right', rightName);
+    const queryStr = params.toString();
+    const httpsUrl = `${origin}/api/calendar${queryStr ? `?${queryStr}` : ''}`;
     const webcalUrl = httpsUrl.replace(/^https?:\/\//i, 'webcal://');
     return { httpsUrl, webcalUrl };
   };
@@ -762,7 +915,7 @@ export default function App() {
     let holidayNightCount = 0;
     let holidayDaySwingCount = 0;
     let totalOtHours = 0;
-    
+
     let doubleOffCount = 0;
     let dateCount = 0;
 
@@ -777,12 +930,12 @@ export default function App() {
 
     Object.keys(markedDates).forEach((dateStr) => {
       const mark = markedDates[dateStr];
-      const shift = mark?.haeShift;
-      const dShift = mark?.dawonShift;
+      const shift = mark?.leftShift;
+      const rShift = mark?.rightShift;
       const isHol = !!holidays[dateStr];
 
       if (dateStr.startsWith(currentViewYearMonth)) {
-        if (shift?.id === 'OFF' && dShift?.id === 'OFF') doubleOffCount += 1;
+        if (shift?.id === 'OFF' && rShift?.id === 'OFF') doubleOffCount += 1;
         if (mark?.memo && mark.memo.includes('♥')) dateCount += 1;
       }
 
@@ -807,15 +960,15 @@ export default function App() {
     const bonus = parseInt(extraBonusInput.replace(/[^0-9]/g, '') || '0', 10);
     const grossPay = FIXED_PAY_TOTAL + otAllowance + normalNightAllowance + holidayNightAllowance + holidayDaySwingAllowance + bonus;
 
-    const employmentInsurance = Math.round(grossPay * 0.009); 
-    
+    const employmentInsurance = Math.round(grossPay * 0.009);
+
     let incomeTax = parseInt(taxInput.replace(/[^0-9]/g, ''), 10);
     if (isNaN(incomeTax)) {
       if (grossPay >= 4000000) incomeTax = 165000;
       else if (grossPay >= 3700000) incomeTax = 145000;
-      else incomeTax = Math.round(grossPay * 0.035); 
+      else incomeTax = Math.round(grossPay * 0.035);
     }
-    const localTax = Math.round(incomeTax * 0.1); 
+    const localTax = Math.round(incomeTax * 0.1);
     const mealDed = parseInt(mealInput.replace(/[^0-9]/g, '') || '0', 10);
 
     const totalDeduction = FIXED_DEDUCTIONS + employmentInsurance + incomeTax + localTax + mealDed;
@@ -846,14 +999,16 @@ export default function App() {
 
   const monthlyStats = calculateMonthlyStats();
 
-  const currentHaeShift = haeOverrides[selectedDate] || (selectedDate ? getCalculatedShift(selectedDate) : null);
-  const currentDawonShift = dawonOverrides[selectedDate];
+  const currentLeftShift = leftOverrides[selectedDate] || (selectedDate ? getCalculatedShift(selectedDate) : null);
+  const currentRightShift = rightOverrides[selectedDate];
   const selectedWeather = weatherMap[selectedDate];
   const selectedMarking = markedDates[selectedDate] || {};
 
   const goToToday = () => {
-    setSelectedDate(todayStr);
-    setCurrentViewYearMonth(todayStr.slice(0, 7));
+    const nowToday = getTodayString();
+    setTodayStr(nowToday);
+    setSelectedDate(nowToday);
+    setCurrentViewYearMonth(nowToday.slice(0, 7));
     setCalendarKey((prev) => prev + 1);
   };
 
@@ -892,7 +1047,7 @@ export default function App() {
 
         <View style={[styles.topHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
-            <Text style={[styles.brandTitle, { color: theme.text }]}>해 & 다원</Text>
+            <Text style={[styles.brandTitle, { color: theme.text }]}>{leftName} & {rightName}</Text>
             <View style={[styles.couplePill, { backgroundColor: theme.accentSoft }]}>
               <Text style={[styles.couplePillText, { color: theme.accent }]}>♥ {coupleDaysCount}일째</Text>
             </View>
@@ -930,8 +1085,8 @@ export default function App() {
               {[
                 { id: 'ALL', label: '전체 보기' },
                 { id: 'TOGETHER', label: `💕 겹휴무·데이트(${monthlyStats.doubleOffCount})` },
-                { id: 'HAE', label: '☀️ 해 근무' },
-                { id: 'DAWON', label: '🌙 다원 근무' },
+                { id: 'LEFT', label: `☀️ ${leftName} 근무` },
+                { id: 'RIGHT', label: `🌙 ${rightName} 근무` },
               ].map((f) => {
                 const active = calendarFilter === f.id;
                 return (
@@ -960,9 +1115,9 @@ export default function App() {
 
             <View style={[styles.calendarCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <View style={[styles.legendBar, { borderBottomColor: theme.border }]}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>좌: 해 / 우: 다원</Text>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>좌: {leftName} / 우: {rightName}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  {Object.values(DAWON_SHIFTS).map((s) => (
+                  {Object.values(RIGHT_SHIFTS).map((s) => (
                     <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                       <View style={[styles.legendDot, { backgroundColor: s.color }]} />
                       <Text style={{ fontSize: 10, fontWeight: '600', color: theme.subText }}>{s.label}</Text>
@@ -1015,7 +1170,7 @@ export default function App() {
                   const isSelected = dateStr === selectedDate;
                   const isDisabled = state === 'disabled';
                   const isDateDay = marking.memo && marking.memo.includes('♥');
-                  const isDoubleOff = marking.haeShift?.id === 'OFF' && marking.dawonShift?.id === 'OFF';
+                  const isDoubleOff = marking.leftShift?.id === 'OFF' && marking.rightShift?.id === 'OFF';
                   const isHoliday = holidays[dateStr];
                   const dayWeather = weatherMap[dateStr];
 
@@ -1061,7 +1216,7 @@ export default function App() {
                         </View>
 
                         <View style={styles.miniDotRow}>
-                          {marking.memo || marking.hMemo || marking.dMemo ? (
+                          {marking.memo || marking.lMemo || marking.rMemo ? (
                             <View
                               style={[
                                 styles.miniDot,
@@ -1085,37 +1240,37 @@ export default function App() {
                       </View>
 
                       <View style={[styles.dualShiftContainer, isDisabled && { opacity: 0.3 }]}>
-                        {calendarFilter !== 'DAWON' && marking.haeShift ? (
+                        {calendarFilter !== 'RIGHT' && marking.leftShift ? (
                           <View
                             style={[
                               styles.shiftPill,
-                              { backgroundColor: marking.haeShift.color },
-                              calendarFilter === 'HAE' && { flex: 1 },
+                              { backgroundColor: marking.leftShift.color },
+                              calendarFilter === 'LEFT' && { flex: 1 },
                             ]}
                           >
-                            <Text style={[styles.shiftPillText, { color: marking.haeShift.textColor }]}>
-                              {marking.haeShift.text}
-                              {marking.haeShift.ot ? `+${marking.haeShift.ot}` : ''}
+                            <Text style={[styles.shiftPillText, { color: marking.leftShift.textColor }]}>
+                              {marking.leftShift.text}
+                              {marking.leftShift.ot ? `+${marking.leftShift.ot}` : ''}
                             </Text>
                           </View>
-                        ) : calendarFilter !== 'DAWON' ? (
+                        ) : calendarFilter !== 'RIGHT' ? (
                           <View style={styles.shiftPillEmpty} />
                         ) : null}
 
-                        {calendarFilter !== 'HAE' && marking.dawonShift ? (
+                        {calendarFilter !== 'LEFT' && marking.rightShift ? (
                           <View
                             style={[
                               styles.shiftPill,
-                              { backgroundColor: marking.dawonShift.color },
-                              calendarFilter === 'DAWON' && { flex: 1 },
+                              { backgroundColor: marking.rightShift.color },
+                              calendarFilter === 'RIGHT' && { flex: 1 },
                             ]}
                           >
-                            <Text style={[styles.shiftPillText, { color: marking.dawonShift.textColor }]}>
-                              {marking.dawonShift.text}
-                              {marking.dawonShift.ot ? `+${marking.dawonShift.ot}` : ''}
+                            <Text style={[styles.shiftPillText, { color: marking.rightShift.textColor }]}>
+                              {marking.rightShift.text}
+                              {marking.rightShift.ot ? `+${marking.rightShift.ot}` : ''}
                             </Text>
                           </View>
-                        ) : calendarFilter !== 'HAE' ? (
+                        ) : calendarFilter !== 'LEFT' ? (
                           <View style={[styles.shiftPillEmpty, { backgroundColor: theme.cardSub }]} />
                         ) : null}
                       </View>
@@ -1160,18 +1315,18 @@ export default function App() {
                   onPress={() => openEditSheet(selectedDate)}
                   style={[styles.personCard, { backgroundColor: theme.cardSub, borderColor: theme.border }]}
                 >
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>☀️ 해 근무</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>☀️ {leftName} 근무</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                    {currentHaeShift && (
-                      <View style={[styles.MiniBadge, { backgroundColor: currentHaeShift.color }]}>
-                        <Text style={{ fontSize: 11, fontWeight: '800', color: currentHaeShift.textColor }}>
-                          {currentHaeShift.label}
+                    {currentLeftShift && (
+                      <View style={[styles.MiniBadge, { backgroundColor: currentLeftShift.color }]}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: currentLeftShift.textColor }}>
+                          {currentLeftShift.label}
                         </Text>
                       </View>
                     )}
-                    {currentHaeShift?.ot ? (
+                    {currentLeftShift?.ot ? (
                       <Text style={{ fontSize: 11, fontWeight: '700', color: theme.primary }}>
-                        +{currentHaeShift.ot}시간 OT
+                        +{currentLeftShift.ot}시간 OT
                       </Text>
                     ) : null}
                   </View>
@@ -1181,20 +1336,20 @@ export default function App() {
                   onPress={() => openEditSheet(selectedDate)}
                   style={[styles.personCard, { backgroundColor: theme.cardSub, borderColor: theme.border }]}
                 >
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>🌙 다원 근무</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>🌙 {rightName} 근무</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                    {currentDawonShift ? (
-                      <View style={[styles.MiniBadge, { backgroundColor: currentDawonShift.color }]}>
-                        <Text style={{ fontSize: 11, fontWeight: '800', color: currentDawonShift.textColor }}>
-                          {currentDawonShift.label}
+                    {currentRightShift ? (
+                      <View style={[styles.MiniBadge, { backgroundColor: currentRightShift.color }]}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: currentRightShift.textColor }}>
+                          {currentRightShift.label}
                         </Text>
                       </View>
                     ) : (
                       <Text style={{ fontSize: 11, color: theme.subText, fontWeight: '600' }}>미입력 (터치)</Text>
                     )}
-                    {currentDawonShift?.ot ? (
+                    {currentRightShift?.ot ? (
                       <Text style={{ fontSize: 11, fontWeight: '700', color: theme.primary }}>
-                        +{currentDawonShift.ot}시간 OT
+                        +{currentRightShift.ot}시간 OT
                       </Text>
                     ) : null}
                   </View>
@@ -1217,14 +1372,14 @@ export default function App() {
                       강수확률 {selectedWeather.maxPop}%
                     </Text>
                   </View>
-                  {currentHaeShift && (
+                  {currentLeftShift && (
                     <Text style={{ fontSize: 11, color: theme.subText, marginTop: 1 }}>
-                      • {getShiftCommuteBriefing('해', currentHaeShift, selectedWeather)}
+                      • {getShiftCommuteBriefing(leftName, currentLeftShift, selectedWeather)}
                     </Text>
                   )}
-                  {currentDawonShift && (
+                  {currentRightShift && (
                     <Text style={{ fontSize: 11, color: theme.subText, marginTop: 1 }}>
-                      • {getShiftCommuteBriefing('다원', currentDawonShift, selectedWeather)}
+                      • {getShiftCommuteBriefing(rightName, currentRightShift, selectedWeather)}
                     </Text>
                   )}
                 </View>
@@ -1234,18 +1389,18 @@ export default function App() {
                 onPress={() => openEditSheet(selectedDate)}
                 style={[styles.memoPreviewBox, { backgroundColor: theme.cardSub, borderColor: theme.border }]}
               >
-                {selectedMarking.memo || selectedMarking.hMemo || selectedMarking.dMemo ? (
+                {selectedMarking.memo || selectedMarking.lMemo || selectedMarking.rMemo ? (
                   <View style={{ gap: 3 }}>
                     {selectedMarking.memo ? (
                       <Text style={{ fontSize: 12, color: theme.text, fontWeight: '600' }}>
                         💬 공용: {selectedMarking.memo}
                       </Text>
                     ) : null}
-                    {selectedMarking.hMemo ? (
-                      <Text style={{ fontSize: 11, color: theme.subText }}>☀️ 해: {selectedMarking.hMemo}</Text>
+                    {selectedMarking.lMemo ? (
+                      <Text style={{ fontSize: 11, color: theme.subText }}>☀️ {leftName}: {selectedMarking.lMemo}</Text>
                     ) : null}
-                    {selectedMarking.dMemo ? (
-                      <Text style={{ fontSize: 11, color: theme.subText }}>🌙 다원: {selectedMarking.dMemo}</Text>
+                    {selectedMarking.rMemo ? (
+                      <Text style={{ fontSize: 11, color: theme.subText }}>🌙 {rightName}: {selectedMarking.rMemo}</Text>
                     ) : null}
                   </View>
                 ) : (
@@ -1284,6 +1439,8 @@ export default function App() {
                     key={`${item.date}-${idx}`}
                     onPress={() => {
                       setSelectedDate(item.date);
+                      setCurrentViewYearMonth(item.date.slice(0, 7));
+                      setCalendarKey((prev) => prev + 1);
                       setMainTab('calendar');
                     }}
                     style={[styles.milestoneRow, { borderBottomColor: theme.border }]}
@@ -1329,7 +1486,7 @@ export default function App() {
                 </View>
               </View>
               <Text style={{ fontSize: 11, color: theme.subText, marginBottom: 14 }}>
-                핸드폰·PC 어디서든 해와 다원이 작성·수정·삭제한 메모 내역이 모든 기기에 동일하게 표시됩니다.
+                핸드폰·PC 어디서든 {leftName}·{rightName}이(가) 작성·수정·삭제한 메모 내역이 모든 기기에 동일하게 표시됩니다.
               </Text>
 
               {memoHistory.length === 0 ? (
@@ -1350,6 +1507,15 @@ export default function App() {
                   const badgeColor = isAdd ? theme.primary : isEdit ? '#D97706' : '#EF4444';
                   const badgeLabel = isAdd ? '새로 작성' : isEdit ? '내용 수정' : '메모 삭제';
 
+                  const displayTab =
+                    log.tab === 'LEFT'
+                      ? leftName
+                      : log.tab === 'RIGHT'
+                      ? rightName
+                      : log.tab === 'PUBLIC'
+                      ? '공용'
+                      : log.tab;
+
                   return (
                     <TouchableOpacity
                       key={log.id}
@@ -1357,6 +1523,8 @@ export default function App() {
                       onPress={() => {
                         if (log.targetDate) {
                           setSelectedDate(log.targetDate);
+                          setCurrentViewYearMonth(log.targetDate.slice(0, 7));
+                          setCalendarKey((prev) => prev + 1);
                           setMainTab('calendar');
                         }
                       }}
@@ -1370,7 +1538,7 @@ export default function App() {
                             </Text>
                             <View style={[styles.tagBadge, { backgroundColor: theme.cardSub }]}>
                               <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText }}>
-                                {log.tab} 메모
+                                {displayTab} 메모
                               </Text>
                             </View>
                           </View>
@@ -1421,6 +1589,61 @@ export default function App() {
 
         {mainTab === 'settings' && (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {/* 👥 커플 좌측 / 우측 이름 설정 카드 */}
+            <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 0 }]}>
+              <Text style={[styles.sectionHeaderTitle, { color: theme.text }]}>👥 커플 이름 설정 (좌측 / 우측)</Text>
+              <Text style={{ fontSize: 12, color: theme.subText, marginBottom: 12 }}>
+                상단 타이틀, 캘린더 필터, 근무 카드, 메모 탭에 표시될 이름을 설정합니다.
+              </Text>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: theme.text, marginBottom: 6 }}>☀️ 좌측 이름</Text>
+                  <TextInput
+                    style={[
+                      styles.nameSettingInput,
+                      { color: theme.text, backgroundColor: theme.cardSub, borderColor: theme.border },
+                    ]}
+                    value={leftNameInput}
+                    onChangeText={setLeftNameInput}
+                    placeholder="좌측 이름 입력"
+                    placeholderTextColor={theme.subText}
+                    maxLength={8}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: theme.text, marginBottom: 6 }}>🌙 우측 이름</Text>
+                  <TextInput
+                    style={[
+                      styles.nameSettingInput,
+                      { color: theme.text, backgroundColor: theme.cardSub, borderColor: theme.border },
+                    ]}
+                    value={rightNameInput}
+                    onChangeText={setRightNameInput}
+                    placeholder="우측 이름 입력"
+                    placeholderTextColor={theme.subText}
+                    maxLength={8}
+                  />
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                <TouchableOpacity onPress={handleResetCoupleNames} style={{ paddingVertical: 6 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: theme.subText }}>
+                    기본값({DEFAULT_LEFT_NAME}/{DEFAULT_RIGHT_NAME}) 초기화
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleSaveCoupleNames}
+                  style={[styles.editTriggerBtn, { backgroundColor: theme.primary, paddingHorizontal: 16, paddingVertical: 8 }]}
+                >
+                  <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>이름 저장</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             <View style={[styles.detailCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <Text style={[styles.sectionHeaderTitle, { color: theme.text }]}>⚙️ 앱 환경설정 & 연동</Text>
 
@@ -1438,7 +1661,11 @@ export default function App() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => setIsDark(!isDark)}
+                onPress={() => {
+                  const next = !isDark;
+                  setIsDark(next);
+                  AsyncStorage.setItem('@app_theme_dark', next.toString()).catch(() => {});
+                }}
                 style={[styles.settingItem, { borderBottomColor: theme.border }]}
               >
                 <View>
@@ -1546,16 +1773,16 @@ export default function App() {
               <View style={[styles.editSectionBox, { backgroundColor: theme.cardSub, borderColor: theme.border }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text }}>
-                    ☀️ 해 근무 {currentHaeShift ? `(${currentHaeShift.label}${currentHaeShift.ot ? ` + OT${currentHaeShift.ot}` : ''})` : ''}
+                    ☀️ {leftName} 근무 {currentLeftShift ? `(${currentLeftShift.label}${currentLeftShift.ot ? ` + OT${currentLeftShift.ot}` : ''})` : ''}
                   </Text>
-                  <TouchableOpacity onPress={clearHaeShift}>
+                  <TouchableOpacity onPress={clearLeftShift}>
                     <Text style={{ fontSize: 11, fontWeight: '700', color: theme.primary }}>자동 계산 복구</Text>
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.shiftBtnGrid}>
-                  {Object.values(HAE_SHIFTS).map((shift) => {
-                    const selected = currentHaeShift?.id === shift.id;
+                  {Object.values(LEFT_SHIFTS).map((shift) => {
+                    const selected = currentLeftShift?.id === shift.id;
                     return (
                       <TouchableOpacity
                         key={shift.id}
@@ -1564,7 +1791,7 @@ export default function App() {
                           { backgroundColor: shift.color },
                           selected && { borderWidth: 2, borderColor: theme.text },
                         ]}
-                        onPress={() => updateHaeShift(shift)}
+                        onPress={() => updateLeftShift(shift)}
                       >
                         <Text style={{ fontSize: 13, fontWeight: '800', color: shift.textColor }}>{shift.label}</Text>
                       </TouchableOpacity>
@@ -1575,15 +1802,15 @@ export default function App() {
                 <View style={styles.otRow}>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText, marginRight: 6 }}>연장(OT):</Text>
                   {[1, 2, 3, 4].map((ot) => {
-                    const active = currentHaeShift?.ot === ot;
+                    const active = currentLeftShift?.ot === ot;
                     return (
                       <TouchableOpacity
-                        key={`h-ot-${ot}`}
+                        key={`l-ot-${ot}`}
                         style={[
                           styles.otChip,
                           { borderColor: active ? theme.primary : theme.border, backgroundColor: active ? theme.primarySoft : theme.card },
                         ]}
-                        onPress={() => setOT('hae', ot)}
+                        onPress={() => setOT('left', ot)}
                       >
                         <Text style={{ fontSize: 11, fontWeight: '700', color: active ? theme.primary : theme.subText }}>
                           +{ot}시간
@@ -1597,16 +1824,16 @@ export default function App() {
               <View style={[styles.editSectionBox, { backgroundColor: theme.cardSub, borderColor: theme.border }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text }}>
-                    🌙 다원 근무 {currentDawonShift ? `(${currentDawonShift.label}${currentDawonShift.ot ? ` + OT${currentDawonShift.ot}` : ''})` : '(미입력)'}
+                    🌙 {rightName} 근무 {currentRightShift ? `(${currentRightShift.label}${currentRightShift.ot ? ` + OT${currentRightShift.ot}` : ''})` : '(미입력)'}
                   </Text>
-                  <TouchableOpacity onPress={clearDawonShift}>
+                  <TouchableOpacity onPress={clearRightShift}>
                     <Text style={{ fontSize: 11, fontWeight: '700', color: '#EF4444' }}>지우기</Text>
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.shiftBtnGrid}>
-                  {Object.values(DAWON_SHIFTS).map((shift) => {
-                    const selected = currentDawonShift?.id === shift.id;
+                  {Object.values(RIGHT_SHIFTS).map((shift) => {
+                    const selected = currentRightShift?.id === shift.id;
                     return (
                       <TouchableOpacity
                         key={shift.id}
@@ -1615,7 +1842,7 @@ export default function App() {
                           { backgroundColor: shift.color },
                           selected && { borderWidth: 2, borderColor: theme.text },
                         ]}
-                        onPress={() => updateDawonShift(shift)}
+                        onPress={() => updateRightShift(shift)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: '800', color: shift.textColor }}>{shift.label}</Text>
                       </TouchableOpacity>
@@ -1626,15 +1853,15 @@ export default function App() {
                 <View style={styles.otRow}>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: theme.subText, marginRight: 6 }}>연장(OT):</Text>
                   {[1, 2, 3, 4].map((ot) => {
-                    const active = currentDawonShift?.ot === ot;
+                    const active = currentRightShift?.ot === ot;
                     return (
                       <TouchableOpacity
-                        key={`d-ot-${ot}`}
+                        key={`r-ot-${ot}`}
                         style={[
                           styles.otChip,
                           { borderColor: active ? theme.primary : theme.border, backgroundColor: active ? theme.primarySoft : theme.card },
                         ]}
-                        onPress={() => setOT('dawon', ot)}
+                        onPress={() => setOT('right', ot)}
                       >
                         <Text style={{ fontSize: 11, fontWeight: '700', color: active ? theme.primary : theme.subText }}>
                           +{ot}시간
@@ -1647,26 +1874,32 @@ export default function App() {
 
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
-                  {(['공용', '해', '다원'] as const).map((tab) => {
-                    const active = activeMemoTab === tab;
+                  {(
+                    [
+                      { key: 'PUBLIC' as const, label: '공용' },
+                      { key: 'LEFT' as const, label: leftName },
+                      { key: 'RIGHT' as const, label: rightName },
+                    ]
+                  ).map((tab) => {
+                    const active = activeMemoTab === tab.key;
                     return (
                       <TouchableOpacity
-                        key={tab}
-                        onPress={() => setActiveMemoTab(tab)}
+                        key={tab.key}
+                        onPress={() => setActiveMemoTab(tab.key)}
                         style={[
                           styles.memoTabChip,
                           { backgroundColor: active ? theme.text : theme.cardSub },
                         ]}
                       >
                         <Text style={{ fontSize: 12, fontWeight: '700', color: active ? theme.card : theme.subText }}>
-                          {tab} 메모
+                          {tab.label} 메모
                         </Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
 
-                {activeMemoTab === '공용' && (
+                {activeMemoTab === 'PUBLIC' && (
                   <TouchableOpacity
                     style={[styles.dateToggleChip, { backgroundColor: theme.accentSoft }]}
                     onPress={addDateMemo}
@@ -1681,10 +1914,16 @@ export default function App() {
                   styles.modernInput,
                   { color: theme.text, backgroundColor: theme.cardSub, borderColor: theme.border },
                 ]}
-                placeholder={activeMemoTab === '공용' ? '함께 공유할 일정이나 데이트 장소를 적어보세요' : `${activeMemoTab}의 개인 메모`}
+                placeholder={
+                  activeMemoTab === 'PUBLIC'
+                    ? '함께 공유할 일정이나 데이트 장소를 적어보세요'
+                    : activeMemoTab === 'LEFT'
+                    ? `${leftName}의 개인 메모`
+                    : `${rightName}의 개인 메모`
+                }
                 placeholderTextColor={theme.subText}
-                value={activeMemoTab === '공용' ? memoInput : activeMemoTab === '해' ? haeMemoInput : dawonMemoInput}
-                onChangeText={activeMemoTab === '공용' ? setMemoInput : activeMemoTab === '해' ? setHaeMemoInput : setDawonMemoInput}
+                value={activeMemoTab === 'PUBLIC' ? memoInput : activeMemoTab === 'LEFT' ? leftMemoInput : rightMemoInput}
+                onChangeText={activeMemoTab === 'PUBLIC' ? setMemoInput : activeMemoTab === 'LEFT' ? setLeftMemoInput : setRightMemoInput}
                 multiline={true}
               />
 
@@ -1692,9 +1931,9 @@ export default function App() {
                 <TouchableOpacity
                   style={[styles.sheetSecondaryBtn, { borderColor: theme.border }]}
                   onPress={() => {
-                    if (activeMemoTab === '공용') setMemoInput('');
-                    else if (activeMemoTab === '해') setHaeMemoInput('');
-                    else setDawonMemoInput('');
+                    if (activeMemoTab === 'PUBLIC') setMemoInput('');
+                    else if (activeMemoTab === 'LEFT') setLeftMemoInput('');
+                    else setRightMemoInput('');
                   }}
                 >
                   <Text style={{ fontSize: 14, fontWeight: '700', color: theme.subText }}>내용 비우기</Text>
@@ -1719,7 +1958,7 @@ export default function App() {
               📲 아이폰 캘린더 & 위젯 연동
             </Text>
             <Text style={{ fontSize: 12, color: theme.subText, lineHeight: 18, marginBottom: 16 }}>
-              구독하기를 누르면 아이폰 기본 캘린더 앱에 해·다원의 근무표와 데이트가 자동 동기화됩니다.
+              구독하기를 누르면 아이폰 기본 캘린더 앱에 {leftName}·{rightName}의 근무표와 데이트가 자동 동기화됩니다.
             </Text>
 
             <TouchableOpacity
@@ -1758,21 +1997,30 @@ export default function App() {
                 <Text style={{ fontSize: 12, color: theme.subText, marginBottom: 16, textAlign: 'center' }}>
                   급여 및 OT 정산 내역은 비밀번호 입력 후 열람 가능합니다.
                 </Text>
-                <TextInput
-                  style={[
-                    styles.pinInput,
-                    { color: theme.text, backgroundColor: theme.cardSub, borderColor: pinError ? '#EF4444' : theme.border },
-                  ]}
-                  placeholder="PIN 6자리"
-                  placeholderTextColor={theme.subText}
-                  secureTextEntry={true}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  value={pinInput}
-                  onChangeText={handlePinSubmit}
-                  autoFocus={true}
-                />
-                {pinError && (
+                {lockStatus.isLocked ? (
+                  <View style={{ backgroundColor: theme.accentSoft, padding: 12, borderRadius: 12, width: '100%', alignItems: 'center' }}>
+                    <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '800' }}>
+                      🚫 5회 연속 오류로 일시 잠금 ({lockStatus.remainingSeconds}초 후 해제)
+                    </Text>
+                  </View>
+                ) : (
+                  <TextInput
+                    style={[
+                      styles.pinInput,
+                      { color: theme.text, backgroundColor: theme.cardSub, borderColor: pinError ? '#EF4444' : theme.border },
+                    ]}
+                    placeholder="PIN 6자리"
+                    placeholderTextColor={theme.subText}
+                    secureTextEntry={true}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    value={pinInput}
+                    onChangeText={handlePinSubmit}
+                    autoFocus={true}
+                    editable={!isCheckingPin}
+                  />
+                )}
+                {pinError && !lockStatus.isLocked && (
                   <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 8, fontWeight: '700' }}>
                     비밀번호가 일치하지 않습니다.
                   </Text>
@@ -1814,7 +2062,7 @@ export default function App() {
                   <Text style={{ color: theme.text, fontSize: 13, fontWeight: '700' }}>[1단계] 당월 기본급+전환수당</Text>
                   <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>{FIXED_PAY_TOTAL.toLocaleString()}원</Text>
                 </View>
-                
+
                 <View style={styles.statLine}>
                   <Text style={{ color: theme.subText, fontSize: 13 }}>[2단계] 전월({monthlyStats.prevMonthNum}월) 잔업수당 ({monthlyStats.totalOtHours}h)</Text>
                   <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>+{monthlyStats.otAllowance.toLocaleString()}원</Text>
@@ -1829,7 +2077,7 @@ export default function App() {
                     +{(monthlyStats.holidayDaySwingAllowance + monthlyStats.holidayNightAllowance).toLocaleString()}원
                   </Text>
                 </View>
-                
+
                 <View style={[styles.statLine, { alignItems: 'center', marginTop: 4 }]}>
                   <Text style={{ color: theme.subText, fontSize: 13 }}>기타 상여/배려금 추가</Text>
                   <TextInput
@@ -2045,6 +2293,14 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   sectionHeaderTitle: { fontSize: 15, fontWeight: '800', marginBottom: 10 },
+  nameSettingInput: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    fontSize: 14,
+    fontWeight: '700',
+  },
   milestoneRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

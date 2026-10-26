@@ -1,4 +1,4 @@
-export type ShiftId = 'DAY' | 'EVE' | 'SW' | 'GY' | 'OFF';
+export type ShiftId = 'DAY' | 'EVE' | 'SW' | 'GY' | 'NI' | 'OFF';
 
 export interface ShiftInfo {
   id: ShiftId;
@@ -10,11 +10,11 @@ export interface ShiftInfo {
 }
 
 export interface DateMarking {
-  haeShift?: ShiftInfo | null;
-  dawonShift?: ShiftInfo | null;
+  leftShift?: ShiftInfo | null;
+  rightShift?: ShiftInfo | null;
   memo?: string;
-  hMemo?: string;
-  dMemo?: string;
+  leftMemo?: string;
+  rightMemo?: string;
   annivText?: string;
 }
 
@@ -22,14 +22,21 @@ export interface MemoLog {
   id: string;
   timestamp: number;
   targetDate: string;
-  tab: string;
+  tab: string; // 'PUBLIC' | 'LEFT' | 'RIGHT' (and legacy string labels)
   type: 'ADD' | 'EDIT' | 'DELETE';
   content: string;
+  oldContent?: string;
 }
 
-export type CalendarFilter = 'ALL' | 'TOGETHER' | 'HAE' | 'DAWON';
+export type CalendarFilter = 'ALL' | 'TOGETHER' | 'LEFT' | 'RIGHT';
 
 export type SyncState = 'synced' | 'saving' | 'error';
+
+export interface CoupleProfileConfig {
+  leftName: string;
+  rightName: string;
+  cycleBaseDate?: string;
+}
 
 export interface SalaryStats {
   normalNightCount: number;
@@ -49,14 +56,14 @@ export interface SalaryStats {
 
 export interface MonthlyWorkSummary {
   yearMonth: string;
-  hae: {
+  left: {
     dayCount: number;
     swCount: number;
     gyCount: number;
     offCount: number;
     totalOt: number;
   };
-  dawon: {
+  right: {
     dayCount: number;
     eveCount: number;
     swCount: number;
@@ -67,3 +74,4 @@ export interface MonthlyWorkSummary {
   doubleOffCount: number;
   doubleOffDates: string[];
 }
+

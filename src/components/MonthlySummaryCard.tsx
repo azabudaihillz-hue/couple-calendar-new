@@ -12,12 +12,16 @@ interface MonthlySummaryCardProps {
   summary: MonthlyWorkSummary;
   isDark: boolean;
   onCopyDoubleOffList: () => void;
+  leftName: string;
+  rightName: string;
 }
 
 export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
   summary,
   isDark,
   onCopyDoubleOffList,
+  leftName,
+  rightName,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -62,62 +66,62 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
         <View style={styles.expandedContent}>
           <View style={[styles.divider, { backgroundColor: dividerColor }]} />
 
-          {/* ☀️ 해 근무 통계 */}
+          {/* ☀️ 좌측 사용자 근무 통계 */}
           <View style={styles.personSection}>
             <View style={styles.personHeader}>
-              <Text style={[styles.personName, { color: textColor }]}>☀️ 해</Text>
+              <Text style={[styles.personName, { color: textColor }]}>☀️ {leftName || '좌측'}</Text>
               <Text style={[styles.otBadge, { color: isDark ? '#0A84FF' : '#007AFF' }]}>
-                {summary.hae.totalOt > 0 ? `총 연장 ${summary.hae.totalOt}h` : '연장 없음'}
+                {summary.left.totalOt > 0 ? `총 연장 ${summary.left.totalOt}h` : '연장 없음'}
               </Text>
             </View>
             <View style={styles.statsRow}>
               <View style={[styles.statPill, { backgroundColor: pillBg }]}>
                 <Text style={[styles.statLabel, { color: subTextColor }]}>데이</Text>
-                <Text style={[styles.statValue, { color: textColor }]}>{summary.hae.dayCount}일</Text>
+                <Text style={[styles.statValue, { color: textColor }]}>{summary.left.dayCount}일</Text>
               </View>
               <View style={[styles.statPill, { backgroundColor: pillBg }]}>
                 <Text style={[styles.statLabel, { color: subTextColor }]}>스윙</Text>
-                <Text style={[styles.statValue, { color: textColor }]}>{summary.hae.swCount}일</Text>
+                <Text style={[styles.statValue, { color: textColor }]}>{summary.left.swCount}일</Text>
               </View>
               <View style={[styles.statPill, { backgroundColor: pillBg }]}>
                 <Text style={[styles.statLabel, { color: subTextColor }]}>야간</Text>
-                <Text style={[styles.statValue, { color: textColor }]}>{summary.hae.gyCount}일</Text>
+                <Text style={[styles.statValue, { color: textColor }]}>{summary.left.gyCount}일</Text>
               </View>
               <View style={[styles.statPill, { backgroundColor: pillBg }]}>
                 <Text style={[styles.statLabel, { color: '#FF2D55' }]}>휴무</Text>
-                <Text style={[styles.statValue, { color: '#FF2D55' }]}>{summary.hae.offCount}일</Text>
+                <Text style={[styles.statValue, { color: '#FF2D55' }]}>{summary.left.offCount}일</Text>
               </View>
             </View>
           </View>
 
-          {/* 🌙 다원 근무 통계 */}
+          {/* 🌙 우측 사용자 근무 통계 */}
           <View style={[styles.personSection, { marginTop: 10 }]}>
             <View style={styles.personHeader}>
-              <Text style={[styles.personName, { color: textColor }]}>🌙 다원</Text>
+              <Text style={[styles.personName, { color: textColor }]}>🌙 {rightName || '우측'}</Text>
               <Text style={[styles.otBadge, { color: isDark ? '#0A84FF' : '#007AFF' }]}>
-                {summary.dawon.totalOt > 0 ? `총 연장 ${summary.dawon.totalOt}h` : '연장 없음'}
+                {summary.right.totalOt > 0 ? `총 연장 ${summary.right.totalOt}h` : '연장 없음'}
               </Text>
             </View>
             <View style={styles.statsRow}>
               <View style={[styles.statPill, { backgroundColor: pillBg }]}>
                 <Text style={[styles.statLabel, { color: subTextColor }]}>데이</Text>
-                <Text style={[styles.statValue, { color: textColor }]}>{summary.dawon.dayCount}일</Text>
+                <Text style={[styles.statValue, { color: textColor }]}>{summary.right.dayCount}일</Text>
               </View>
               <View style={[styles.statPill, { backgroundColor: pillBg }]}>
                 <Text style={[styles.statLabel, { color: subTextColor }]}>이브</Text>
-                <Text style={[styles.statValue, { color: textColor }]}>{summary.dawon.eveCount}일</Text>
+                <Text style={[styles.statValue, { color: textColor }]}>{summary.right.eveCount}일</Text>
               </View>
               <View style={[styles.statPill, { backgroundColor: pillBg }]}>
                 <Text style={[styles.statLabel, { color: subTextColor }]}>스윙</Text>
-                <Text style={[styles.statValue, { color: textColor }]}>{summary.dawon.swCount}일</Text>
+                <Text style={[styles.statValue, { color: textColor }]}>{summary.right.swCount}일</Text>
               </View>
               <View style={[styles.statPill, { backgroundColor: pillBg }]}>
                 <Text style={[styles.statLabel, { color: subTextColor }]}>야간</Text>
-                <Text style={[styles.statValue, { color: textColor }]}>{summary.dawon.gyCount}일</Text>
+                <Text style={[styles.statValue, { color: textColor }]}>{summary.right.gyCount}일</Text>
               </View>
               <View style={[styles.statPill, { backgroundColor: pillBg }]}>
                 <Text style={[styles.statLabel, { color: '#FF2D55' }]}>휴무</Text>
-                <Text style={[styles.statValue, { color: '#FF2D55' }]}>{summary.dawon.offCount}일</Text>
+                <Text style={[styles.statValue, { color: '#FF2D55' }]}>{summary.right.offCount}일</Text>
               </View>
             </View>
           </View>

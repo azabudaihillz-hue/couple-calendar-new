@@ -11,6 +11,8 @@ interface FilterBarProps {
   activeFilter: CalendarFilter;
   onSelectFilter: (filter: CalendarFilter) => void;
   isDark: boolean;
+  leftName: string;
+  rightName: string;
 }
 
 interface FilterOption {
@@ -19,18 +21,20 @@ interface FilterOption {
   icon?: string;
 }
 
-const FILTER_OPTIONS: FilterOption[] = [
-  { key: 'ALL', label: '전체' },
-  { key: 'TOGETHER', label: '겹휴무' },
-  { key: 'HAE', label: '해' },
-  { key: 'DAWON', label: '다원' },
-];
-
 export const FilterBar: React.FC<FilterBarProps> = ({
   activeFilter,
   onSelectFilter,
   isDark,
+  leftName,
+  rightName,
 }) => {
+  const filterOptions: FilterOption[] = [
+    { key: 'ALL', label: '전체' },
+    { key: 'TOGETHER', label: '겹휴무' },
+    { key: 'LEFT', label: leftName || '좌측' },
+    { key: 'RIGHT', label: rightName || '우측' },
+  ];
+
   const trackBg = isDark ? '#2C2C2E' : '#E5E5EA';
   const inactiveText = isDark ? '#8E8E93' : '#6E6E73';
   const activeBg = isDark ? '#1C1C1E' : '#FFFFFF';
@@ -38,7 +42,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: trackBg }]}>
-      {FILTER_OPTIONS.map((item) => {
+      {filterOptions.map((item) => {
         const isActive = activeFilter === item.key;
         return (
           <TouchableOpacity
@@ -62,6 +66,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 { color: isActive ? activeText : inactiveText },
                 isActive && styles.activeTabText,
               ]}
+              numberOfLines={1}
             >
               {item.key === 'TOGETHER' ? '💕 ' : ''}{item.label}
             </Text>

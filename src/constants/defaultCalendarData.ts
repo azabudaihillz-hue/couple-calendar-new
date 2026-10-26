@@ -1,9 +1,10 @@
 import type { ShiftInfo, MemoLog } from '../types';
 
 export const HISTORY_SYNC_DATE = '1970-01-01';
+export const PROFILE_CONFIG_DATE = '1970-01-02';
 
-// 📦 원본 데이터베이스에서 복구된 해(HAE) 수동 근무 오버라이드
-export const RESTORED_HAE_OVERRIDES: Record<string, ShiftInfo> = {
+// 📦 원본 데이터베이스에서 복구된 좌측 사용자 수동 근무 오버라이드
+export const RESTORED_LEFT_OVERRIDES: Record<string, ShiftInfo> = {
   "2026-10-22": {
     "id": "GY",
     "ot": 4,
@@ -244,8 +245,8 @@ export const RESTORED_HAE_OVERRIDES: Record<string, ShiftInfo> = {
   }
 };
 
-// 📦 원본 데이터베이스에서 복구된 다원(DAWON) 근무 이력 (총 122일)
-export const RESTORED_DAWON_OVERRIDES: Record<string, ShiftInfo> = {
+// 📦 원본 데이터베이스에서 복구된 우측 사용자 근무 이력 (총 122일)
+export const RESTORED_RIGHT_OVERRIDES: Record<string, ShiftInfo> = {
   "2026-09-28": {
     "id": "EVE",
     "text": "E",
@@ -843,7 +844,7 @@ export const RESTORED_DAWON_OVERRIDES: Record<string, ShiftInfo> = {
   },
   "2026-12-03": {
     "id": "OFF",
-    "text": "���",
+    "text": "휴",
     "color": "#FFCAD4",
     "label": "휴무",
     "textColor": "#1C1C1E"
@@ -1127,10 +1128,10 @@ export const RESTORED_MEMOS: Record<string, string> = {
   "2026-11-08": "생일 파티♥"
 };
 
-// 📦 원본 데이터베이스에서 복구된 해(HAE) 개인 메모
-export const RESTORED_HAE_MEMOS: Record<string, string> = {
+// 📦 원본 데이터베이스에서 복구된 좌측 사용자 개인 메모
+export const RESTORED_LEFT_MEMOS: Record<string, string> = {
   "2026-10-12": "오후 6시 출근",
-  "2026-10-26": "휴;;;\nFTR 미참�� > 추후 교육 일정 잡힐 예정",
+  "2026-10-26": "휴;;;\nFTR 미참석 > 추후 교육 일정 잡힐 예정",
   "2026-09-22": "낚시 3시 30분 연안부두",
   "2026-10-13": "소방훈련",
   "2026-10-28": "공정교육",
@@ -1142,12 +1143,12 @@ export const RESTORED_HAE_MEMOS: Record<string, string> = {
   "2026-11-05": "오후 6시 출근\n회식 캔슬",
   "2026-11-30": "이날에 회식!!",
   "2026-10-10": "B조 야간 2교대 지원",
-  "2026-11-07": "후반차 14~18시까지 근무 / 돠니 보려고 반차 옮겼당"
+  "2026-11-07": "후반차 14~18시까지 근무 / 데이트하려고 반차 옮겼당"
 };
 
-// 📦 원본 데이터베이스에서 복구된 다원(DAWON) 개인 메모
-export const RESTORED_DAWON_MEMOS: Record<string, string> = {
-  "2026-10-12": "다원이 치과 예약",
+// 📦 원본 데이터베이스에서 복구된 우측 사용자 개인 메모
+export const RESTORED_RIGHT_MEMOS: Record<string, string> = {
+  "2026-10-12": "치과 예약",
   "2026-09-22": "교육",
   "2026-09-21": "치과"
 };
@@ -1158,7 +1159,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1792776509479_bfac1",
     "timestamp": 1792776509479,
     "targetDate": "2026-11-30",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "oldContent": "",
     "content": "이날에 회식!!"
@@ -1167,7 +1168,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1792776495676_j7t9c",
     "timestamp": 1792776495676,
     "targetDate": "2026-11-05",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "oldContent": "오후 6시 출근\n망했슨 퇴근하고 이날에 팀 전체회식한다!!",
     "content": "오후 6시 출근\n회식 캔슬"
@@ -1176,7 +1177,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1792704849825_5cuqy",
     "timestamp": 1792704849825,
     "targetDate": "2026-10-26",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "oldContent": "휴;;;\nFTR 미참석",
     "content": "휴;;;\nFTR 미참석 > 추후 교육 일정 잡힐 예정"
@@ -1185,7 +1186,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1792704806021_2aj9u",
     "timestamp": 1792704806021,
     "targetDate": "2026-11-05",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "oldContent": "오후 6시 출근",
     "content": "오후 6시 출근\n망했슨 퇴근하고 이날에 팀 전체회식한다!!"
@@ -1194,7 +1195,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1792403450832_xke2u",
     "timestamp": 1792403450832,
     "targetDate": "2026-10-27",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "DELETE",
     "oldContent": "FTR",
     "content": "FTR"
@@ -1203,7 +1204,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1792403446159_5r1gd",
     "timestamp": 1792403446159,
     "targetDate": "2026-10-26",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "oldContent": "휴;;;",
     "content": "휴;;;\nFTR 미참석"
@@ -1212,25 +1213,25 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1792343059426_iqixe",
     "timestamp": 1792343059426,
     "targetDate": "2026-11-07",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
-    "oldContent": "후반차 14~16까지 근무 돠니 보려고 반차 옮겼당",
-    "content": "후반차 14~18시까지 근무 / 돠니 보려고 반차 옮겼당"
+    "oldContent": "후반차 14~16까지 근무 데이트하려고 반차 옮겼당",
+    "content": "후반차 14~18시까지 근무 / 데이트하려고 반차 옮겼당"
   },
   {
     "id": "1792343011829_v4oas",
     "timestamp": 1792343011829,
     "targetDate": "2026-11-07",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "oldContent": "",
-    "content": "후반차 14~16까지 근무 돠니 보려고 반차 옮겼당"
+    "content": "후반차 14~16까지 근무 데이트하려고 반차 옮겼당"
   },
   {
     "id": "1792342976904_1kf4o",
     "timestamp": 1792342976904,
     "targetDate": "2026-10-27",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "oldContent": "반차 예정 06-10\nFTR",
     "content": "FTR"
@@ -1239,7 +1240,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1792234028787_ypu7d",
     "timestamp": 1792234028787,
     "targetDate": "2026-10-28",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "oldContent": "공정교",
     "content": "공정교육"
@@ -1389,7 +1390,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1791794645053y8gou",
     "timestamp": 1791794645053,
     "targetDate": "2026-10-13",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "소방훈련"
   },
@@ -1397,7 +1398,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1791794529485ml2as",
     "timestamp": 1791794529485,
     "targetDate": "2026-10-27",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "content": "반차 예정 06-10\nFTR"
   },
@@ -1405,7 +1406,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "17917945092415ccfw",
     "timestamp": 1791794509241,
     "targetDate": "2026-10-29",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "타운홀"
   },
@@ -1413,7 +1414,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1791794496376o9vp7",
     "timestamp": 1791794496376,
     "targetDate": "2026-10-28",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "content": "공정교"
   },
@@ -1421,7 +1422,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1791794488845bi7tk",
     "timestamp": 1791794488845,
     "targetDate": "2026-10-27",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "content": "반차 예정\nFTR"
   },
@@ -1429,7 +1430,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "17917944468993hkni",
     "timestamp": 1791794446899,
     "targetDate": "2026-10-26",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "content": "휴;;;"
   },
@@ -1509,15 +1510,15 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "17909309662118aqia",
     "timestamp": 1790930966211,
     "targetDate": "2026-10-12",
-    "tab": "다원",
+    "tab": "RIGHT",
     "type": "ADD",
-    "content": "다원이 치과 예약"
+    "content": "치과 예약"
   },
   {
     "id": "1790284611770sfu6v",
     "timestamp": 1790284611770,
     "targetDate": "2026-10-27",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "content": "반차 예정\n타운홀미팅"
   },
@@ -1525,7 +1526,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1790266383543stsvo",
     "timestamp": 1790266383543,
     "targetDate": "2026-11-29",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "오후6시 출근"
   },
@@ -1549,7 +1550,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "17902663490306hh1o",
     "timestamp": 1790266349030,
     "targetDate": "2026-11-05",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "오후 6시 출근"
   },
@@ -1557,7 +1558,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1790266299688c2nun",
     "timestamp": 1790266299688,
     "targetDate": "2026-11-04",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "B조 야간 2교대 지원"
   },
@@ -1565,7 +1566,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1790266293222l6l0q",
     "timestamp": 1790266293222,
     "targetDate": "2026-11-03",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "B조 야간 2교대 지원"
   },
@@ -1573,7 +1574,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1790266095820j0i2p",
     "timestamp": 1790266095820,
     "targetDate": "2026-10-12",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "오후 6시 출근"
   },
@@ -1581,7 +1582,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "17902660837313o8uw",
     "timestamp": 1790266083731,
     "targetDate": "2026-10-11",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "B조 야간 2교대 지원"
   },
@@ -1589,7 +1590,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1790266068502k919n",
     "timestamp": 1790266068502,
     "targetDate": "2026-10-10",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "B조 야간 2교대 지원"
   },
@@ -1597,7 +1598,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1790265896083z0bkq",
     "timestamp": 1790265896083,
     "targetDate": "2026-10-15",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "DELETE",
     "content": ""
   },
@@ -1605,7 +1606,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1790265889435ebczj",
     "timestamp": 1790265889435,
     "targetDate": "2026-10-14",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "DELETE",
     "content": ""
   },
@@ -1613,7 +1614,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1790265796742xa28x",
     "timestamp": 1790265796742,
     "targetDate": "2026-10-15",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "B조 야간 2교대 지원"
   },
@@ -1621,7 +1622,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1790265787847l2fe7",
     "timestamp": 1790265787847,
     "targetDate": "2026-10-14",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "B조 야간 2교대 지원"
   },
@@ -1661,7 +1662,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1789960996193b0p78",
     "timestamp": 1789960996193,
     "targetDate": "2026-09-22",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "EDIT",
     "content": "낚시 3시 30분 연안부두"
   },
@@ -1669,7 +1670,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1789960970016bbayd",
     "timestamp": 1789960970016,
     "targetDate": "2026-09-21",
-    "tab": "다원",
+    "tab": "RIGHT",
     "type": "ADD",
     "content": "치과"
   },
@@ -1677,7 +1678,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "17899609218772ngak",
     "timestamp": 1789960921877,
     "targetDate": "2026-10-27",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "반차 예정"
   },
@@ -1685,7 +1686,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "17899608814756cu7v",
     "timestamp": 1789960881475,
     "targetDate": "2026-10-26",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "FTR 교육 참석 미정"
   },
@@ -1693,7 +1694,7 @@ export const RESTORED_MEMO_HISTORY: MemoLog[] = [
     "id": "1789960860772z2317",
     "timestamp": 1789960860772,
     "targetDate": "2026-10-28",
-    "tab": "해",
+    "tab": "LEFT",
     "type": "ADD",
     "content": "공정교육"
   },
@@ -1818,7 +1819,7 @@ export const INITIAL_CALENDAR_ROWS = [
     },
     "memo": "",
     "hae_memo": "오후 6시 출근",
-    "dawon_memo": "다원이 치과 예약"
+    "dawon_memo": "치과 예약"
   },
   {
     "date": "2026-10-01",
@@ -1879,7 +1880,7 @@ export const INITIAL_CALENDAR_ROWS = [
       "textColor": "#1C1C1E"
     },
     "memo": "",
-    "hae_memo": "휴;;;\nFTR 미참�� > 추후 교육 일정 잡힐 예정",
+    "hae_memo": "휴;;;\nFTR 미참석 > 추후 교육 일정 잡힐 예정",
     "dawon_memo": ""
   },
   {
@@ -3176,7 +3177,7 @@ export const INITIAL_CALENDAR_ROWS = [
     "hae_shift": null,
     "dawon_shift": {
       "id": "OFF",
-      "text": "���",
+      "text": "휴",
       "color": "#FFCAD4",
       "label": "휴무",
       "textColor": "#1C1C1E"
@@ -3495,7 +3496,7 @@ export const INITIAL_CALENDAR_ROWS = [
     "date": "1970-01-01",
     "hae_shift": null,
     "dawon_shift": null,
-    "memo": "[{\"id\":\"1792776509479_bfac1\",\"timestamp\":1792776509479,\"targetDate\":\"2026-11-30\",\"tab\":\"해\",\"type\":\"ADD\",\"oldContent\":\"\",\"content\":\"이날에 회식!!\"},{\"id\":\"1792776495676_j7t9c\",\"timestamp\":1792776495676,\"targetDate\":\"2026-11-05\",\"tab\":\"해\",\"type\":\"EDIT\",\"oldContent\":\"오후 6시 출근\\n망했슨 퇴근하고 이날에 팀 전체회식한다!!\",\"content\":\"오후 6시 출근\\n회식 캔슬\"},{\"id\":\"1792704849825_5cuqy\",\"timestamp\":1792704849825,\"targetDate\":\"2026-10-26\",\"tab\":\"해\",\"type\":\"EDIT\",\"oldContent\":\"휴;;;\\nFTR 미참석\",\"content\":\"휴;;;\\nFTR 미참석 > 추후 교육 일정 잡힐 예정\"},{\"id\":\"1792704806021_2aj9u\",\"timestamp\":1792704806021,\"targetDate\":\"2026-11-05\",\"tab\":\"해\",\"type\":\"EDIT\",\"oldContent\":\"오후 6시 출근\",\"content\":\"오후 6시 출근\\n망했슨 퇴근하고 이날에 팀 전체회식한다!!\"},{\"id\":\"1792403450832_xke2u\",\"timestamp\":1792403450832,\"targetDate\":\"2026-10-27\",\"tab\":\"해\",\"type\":\"DELETE\",\"oldContent\":\"FTR\",\"content\":\"FTR\"},{\"id\":\"1792403446159_5r1gd\",\"timestamp\":1792403446159,\"targetDate\":\"2026-10-26\",\"tab\":\"해\",\"type\":\"EDIT\",\"oldContent\":\"휴;;;\",\"content\":\"휴;;;\\nFTR 미참석\"},{\"id\":\"1792343059426_iqixe\",\"timestamp\":1792343059426,\"targetDate\":\"2026-11-07\",\"tab\":\"해\",\"type\":\"EDIT\",\"oldContent\":\"후반차 14~16까지 근무 돠니 보려고 반차 옮겼당\",\"content\":\"후반차 14~18시까지 근무 / 돠니 보려고 반차 옮겼당\"},{\"id\":\"1792343011829_v4oas\",\"timestamp\":1792343011829,\"targetDate\":\"2026-11-07\",\"tab\":\"해\",\"type\":\"ADD\",\"oldContent\":\"\",\"content\":\"후반차 14~16까지 근무 돠니 보려고 반차 옮겼당\"},{\"id\":\"1792342976904_1kf4o\",\"timestamp\":1792342976904,\"targetDate\":\"2026-10-27\",\"tab\":\"해\",\"type\":\"EDIT\",\"oldContent\":\"반차 예정 06-10\\nFTR\",\"content\":\"FTR\"},{\"id\":\"1792234028787_ypu7d\",\"timestamp\":1792234028787,\"targetDate\":\"2026-10-28\",\"tab\":\"해\",\"type\":\"EDIT\",\"oldContent\":\"공정교\",\"content\":\"공정교육\"},{\"id\":\"1792225379846_e6jmd\",\"timestamp\":1792225379846,\"targetDate\":\"2026-10-17\",\"tab\":\"공용\",\"type\":\"DELETE\",\"oldContent\":\"낫마스.\",\"content\":\"낫마스.\"},{\"id\":\"1792225228298_9zkfg\",\"timestamp\":1792225228298,\"targetDate\":\"2026-11-26\",\"tab\":\"공용\",\"type\":\"EDIT\",\"oldContent\":\"여행 ❤️ 데이트 ♥\",\"content\":\"오사카 여행  ♥\"},{\"id\":\"1792225223884_hyg9d\",\"timestamp\":1792225223884,\"targetDate\":\"2026-11-25\",\"tab\":\"공용\",\"type\":\"EDIT\",\"oldContent\":\"여행 ❤️ 데이트 ♥\",\"content\":\"오사카 여행  ♥\"},{\"id\":\"1792225211509_3n32f\",\"timestamp\":1792225211509,\"targetDate\":\"2026-11-24\",\"tab\":\"공용\",\"type\":\"EDIT\",\"oldContent\":\"여행 ❤️ 데이트 ♥\",\"content\":\"오사카 여행  ♥\"},{\"id\":\"1792225200854_aeqxe\",\"timestamp\":1792225200854,\"targetDate\":\"2026-11-23\",\"tab\":\"공용\",\"type\":\"EDIT\",\"oldContent\":\"여행 ❤️ 데이트 ♥\",\"content\":\"오사카 여행  ♥\"},{\"id\":\"1792224281007uo0t1\",\"timestamp\":1792224281007,\"targetDate\":\"2026-10-17\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"낫마스.\"},{\"id\":\"1792223037049hgu7c\",\"timestamp\":1792223037049,\"targetDate\":\"2026-10-17\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"낫마스\"},{\"id\":\"1792204224487coyop\",\"timestamp\":1792204224487,\"targetDate\":\"2026-10-17\",\"tab\":\"공용\",\"type\":\"DELETE\",\"content\":\"\"},{\"id\":\"1792150986957tbrdy\",\"timestamp\":1792150986957,\"targetDate\":\"2026-11-08\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"생일 파티♥\"},{\"id\":\"1792150980368dm1ah\",\"timestamp\":1792150980368,\"targetDate\":\"2026-11-08\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"생일 파뤼♥\"},{\"id\":\"1792150702277vd6ek\",\"timestamp\":1792150702277,\"targetDate\":\"2026-11-26\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"여행 ❤️ 데이트 ♥\"},{\"id\":\"1792150700679smffg\",\"timestamp\":1792150700679,\"targetDate\":\"2026-11-25\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"여행 ❤️ 데이트 ♥\"},{\"id\":\"17921506952887hmf7\",\"timestamp\":1792150695288,\"targetDate\":\"2026-11-24\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"여행 ❤️ 데이트 ♥\"},{\"id\":\"179215069323767vkq\",\"timestamp\":1792150693237,\"targetDate\":\"2026-11-23\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"여행 ❤️ 데이트 ♥\"},{\"id\":\"1792150689949adq5j\",\"timestamp\":1792150689949,\"targetDate\":\"2026-11-18\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"179215068570231zk0\",\"timestamp\":1792150685702,\"targetDate\":\"2026-11-08\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"1792150682598jvnec\",\"timestamp\":1792150682598,\"targetDate\":\"2026-11-01\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"1791794645053y8gou\",\"timestamp\":1791794645053,\"targetDate\":\"2026-10-13\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"소방훈련\"},{\"id\":\"1791794529485ml2as\",\"timestamp\":1791794529485,\"targetDate\":\"2026-10-27\",\"tab\":\"해\",\"type\":\"EDIT\",\"content\":\"반차 예정 06-10\\nFTR\"},{\"id\":\"17917945092415ccfw\",\"timestamp\":1791794509241,\"targetDate\":\"2026-10-29\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"타운홀\"},{\"id\":\"1791794496376o9vp7\",\"timestamp\":1791794496376,\"targetDate\":\"2026-10-28\",\"tab\":\"해\",\"type\":\"EDIT\",\"content\":\"공정교\"},{\"id\":\"1791794488845bi7tk\",\"timestamp\":1791794488845,\"targetDate\":\"2026-10-27\",\"tab\":\"해\",\"type\":\"EDIT\",\"content\":\"반차 예정\\nFTR\"},{\"id\":\"17917944468993hkni\",\"timestamp\":1791794446899,\"targetDate\":\"2026-10-26\",\"tab\":\"해\",\"type\":\"EDIT\",\"content\":\"휴;;;\"},{\"id\":\"1791609058413p8hvq\",\"timestamp\":1791609058413,\"targetDate\":\"2026-10-25\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"1791609056224ifuwx\",\"timestamp\":1791609056224,\"targetDate\":\"2026-10-24\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"1791609051514aycjq\",\"timestamp\":1791609051514,\"targetDate\":\"2026-10-17\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"179160903654135pmh\",\"timestamp\":1791609036541,\"targetDate\":\"2026-10-16\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"서울대공원 ♥\"},{\"id\":\"1791372109997rebpk\",\"timestamp\":1791372109997,\"targetDate\":\"2026-10-09\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"1791372107830cnjxh\",\"timestamp\":1791372107830,\"targetDate\":\"2026-10-08\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"군산가염 ♥\"},{\"id\":\"1791131993332vj86o\",\"timestamp\":1791131993332,\"targetDate\":\"2026-10-08\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"군산가염\"},{\"id\":\"1790931008127irqf4\",\"timestamp\":1790931008127,\"targetDate\":\"2026-10-04\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"용산 ♥  비 예보 참고하기\"},{\"id\":\"1790930990128owsns\",\"timestamp\":1790930990128,\"targetDate\":\"2026-10-03\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"한강 ♥\"},{\"id\":\"17909309662118aqia\",\"timestamp\":1790930966211,\"targetDate\":\"2026-10-12\",\"tab\":\"다원\",\"type\":\"ADD\",\"content\":\"다원이 치과 예약\"},{\"id\":\"1790284611770sfu6v\",\"timestamp\":1790284611770,\"targetDate\":\"2026-10-27\",\"tab\":\"해\",\"type\":\"EDIT\",\"content\":\"반차 예정\\n타운홀미팅\"},{\"id\":\"1790266383543stsvo\",\"timestamp\":1790266383543,\"targetDate\":\"2026-11-29\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"오후6시 출근\"},{\"id\":\"1790266372863bs95x\",\"timestamp\":1790266372863,\"targetDate\":\"2026-11-27\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790266366769aiz4x\",\"timestamp\":1790266366769,\"targetDate\":\"2026-11-28\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"17902663490306hh1o\",\"timestamp\":1790266349030,\"targetDate\":\"2026-11-05\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"오후 6시 출근\"},{\"id\":\"1790266299688c2nun\",\"timestamp\":1790266299688,\"targetDate\":\"2026-11-04\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790266293222l6l0q\",\"timestamp\":1790266293222,\"targetDate\":\"2026-11-03\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790266095820j0i2p\",\"timestamp\":1790266095820,\"targetDate\":\"2026-10-12\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"오후 6시 출근\"},{\"id\":\"17902660837313o8uw\",\"timestamp\":1790266083731,\"targetDate\":\"2026-10-11\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790266068502k919n\",\"timestamp\":1790266068502,\"targetDate\":\"2026-10-10\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790265896083z0bkq\",\"timestamp\":1790265896083,\"targetDate\":\"2026-10-15\",\"tab\":\"해\",\"type\":\"DELETE\",\"content\":\"\"},{\"id\":\"1790265889435ebczj\",\"timestamp\":1790265889435,\"targetDate\":\"2026-10-14\",\"tab\":\"해\",\"type\":\"DELETE\",\"content\":\"\"},{\"id\":\"1790265796742xa28x\",\"timestamp\":1790265796742,\"targetDate\":\"2026-10-15\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790265787847l2fe7\",\"timestamp\":1790265787847,\"targetDate\":\"2026-10-14\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790249986216lozam\",\"timestamp\":1790249986216,\"targetDate\":\"2026-10-03\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"송도 ♥\"},{\"id\":\"1790249572961fwpv0\",\"timestamp\":1790249572961,\"targetDate\":\"2026-09-30\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"치이!!!!! 카와!!! ♥\\n인천도화 15시 45분 영화\"},{\"id\":\"1790209239413buv9t\",\"timestamp\":1790209239413,\"targetDate\":\"2026-10-03\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"송도\"},{\"id\":\"179020923146278g44\",\"timestamp\":1790209231462,\"targetDate\":\"2026-09-30\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"치이!!!!! 카와!!! ♥ 용산 용산\"},{\"id\":\"1789960996193b0p78\",\"timestamp\":1789960996193,\"targetDate\":\"2026-09-22\",\"tab\":\"해\",\"type\":\"EDIT\",\"content\":\"낚시 3시 30분 연안부두\"},{\"id\":\"1789960970016bbayd\",\"timestamp\":1789960970016,\"targetDate\":\"2026-09-21\",\"tab\":\"다원\",\"type\":\"ADD\",\"content\":\"치과\"},{\"id\":\"17899609218772ngak\",\"timestamp\":1789960921877,\"targetDate\":\"2026-10-27\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"반차 예정\"},{\"id\":\"17899608814756cu7v\",\"timestamp\":1789960881475,\"targetDate\":\"2026-10-26\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"FTR 교육 참석 미정\"},{\"id\":\"1789960860772z2317\",\"timestamp\":1789960860772,\"targetDate\":\"2026-10-28\",\"tab\":\"해\",\"type\":\"ADD\",\"content\":\"공정교육\"},{\"id\":\"17896187207385ques\",\"timestamp\":1789618720738,\"targetDate\":\"2026-09-22\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"♥\"},{\"id\":\"1789605745263za7w3\",\"timestamp\":1789605745263,\"targetDate\":\"2026-10-04\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"♥\"},{\"id\":\"1789604208011u6r34\",\"timestamp\":1789604208011,\"targetDate\":\"2026-10-04\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"❤️ 데이트 ♥\"},{\"id\":\"1789604199070gbnj9\",\"timestamp\":1789604199070,\"targetDate\":\"2026-09-23\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"❤️ 데이트 ♥\"},{\"id\":\"1789604197650mx5d4\",\"timestamp\":1789604197650,\"targetDate\":\"2026-09-22\",\"tab\":\"��용\",\"type\":\"EDIT\",\"content\":\"❤️ 데이트 ♥\"},{\"id\":\"1789604194133lgpjr\",\"timestamp\":1789604194133,\"targetDate\":\"2026-09-14\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"❤️ 데이트 ♥\"},{\"id\":\"17896041832686ge4c\",\"timestamp\":1789604183268,\"targetDate\":\"2026-09-30\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"치이!!!!! 카와!!! ♥\"}]",
+    "memo": "[{\"id\":\"1792776509479_bfac1\",\"timestamp\":1792776509479,\"targetDate\":\"2026-11-30\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"oldContent\":\"\",\"content\":\"이날에 회식!!\"},{\"id\":\"1792776495676_j7t9c\",\"timestamp\":1792776495676,\"targetDate\":\"2026-11-05\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"oldContent\":\"오후 6시 출근\\n망했슨 퇴근하고 이날에 팀 전체회식한다!!\",\"content\":\"오후 6시 출근\\n회식 캔슬\"},{\"id\":\"1792704849825_5cuqy\",\"timestamp\":1792704849825,\"targetDate\":\"2026-10-26\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"oldContent\":\"휴;;;\\nFTR 미참석\",\"content\":\"휴;;;\\nFTR 미참석 > 추후 교육 일정 잡힐 예정\"},{\"id\":\"1792704806021_2aj9u\",\"timestamp\":1792704806021,\"targetDate\":\"2026-11-05\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"oldContent\":\"오후 6시 출근\",\"content\":\"오후 6시 출근\\n망했슨 퇴근하고 이날에 팀 전체회식한다!!\"},{\"id\":\"1792403450832_xke2u\",\"timestamp\":1792403450832,\"targetDate\":\"2026-10-27\",\"tab\":\"LEFT\",\"type\":\"DELETE\",\"oldContent\":\"FTR\",\"content\":\"FTR\"},{\"id\":\"1792403446159_5r1gd\",\"timestamp\":1792403446159,\"targetDate\":\"2026-10-26\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"oldContent\":\"휴;;;\",\"content\":\"휴;;;\\nFTR 미참석\"},{\"id\":\"1792343059426_iqixe\",\"timestamp\":1792343059426,\"targetDate\":\"2026-11-07\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"oldContent\":\"후반차 14~16까지 근무 데이트하려고 반차 옮겼당\",\"content\":\"후반차 14~18시까지 근무 / 데이트하려고 반차 옮겼당\"},{\"id\":\"1792343011829_v4oas\",\"timestamp\":1792343011829,\"targetDate\":\"2026-11-07\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"oldContent\":\"\",\"content\":\"후반차 14~16까지 근무 데이트하려고 반차 옮겼당\"},{\"id\":\"1792342976904_1kf4o\",\"timestamp\":1792342976904,\"targetDate\":\"2026-10-27\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"oldContent\":\"반차 예정 06-10\\nFTR\",\"content\":\"FTR\"},{\"id\":\"1792234028787_ypu7d\",\"timestamp\":1792234028787,\"targetDate\":\"2026-10-28\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"oldContent\":\"공정교\",\"content\":\"공정교육\"},{\"id\":\"1792225379846_e6jmd\",\"timestamp\":1792225379846,\"targetDate\":\"2026-10-17\",\"tab\":\"공용\",\"type\":\"DELETE\",\"oldContent\":\"낫마스.\",\"content\":\"낫마스.\"},{\"id\":\"1792225228298_9zkfg\",\"timestamp\":1792225228298,\"targetDate\":\"2026-11-26\",\"tab\":\"공용\",\"type\":\"EDIT\",\"oldContent\":\"여행 ❤️ 데이트 ♥\",\"content\":\"오사카 여행  ♥\"},{\"id\":\"1792225223884_hyg9d\",\"timestamp\":1792225223884,\"targetDate\":\"2026-11-25\",\"tab\":\"공용\",\"type\":\"EDIT\",\"oldContent\":\"여행 ❤️ 데이트 ♥\",\"content\":\"오사카 여행  ♥\"},{\"id\":\"1792225211509_3n32f\",\"timestamp\":1792225211509,\"targetDate\":\"2026-11-24\",\"tab\":\"공용\",\"type\":\"EDIT\",\"oldContent\":\"여행 ❤️ 데이트 ♥\",\"content\":\"오사카 여행  ♥\"},{\"id\":\"1792225200854_aeqxe\",\"timestamp\":1792225200854,\"targetDate\":\"2026-11-23\",\"tab\":\"공용\",\"type\":\"EDIT\",\"oldContent\":\"여행 ❤️ 데이트 ♥\",\"content\":\"오사카 여행  ♥\"},{\"id\":\"1792224281007uo0t1\",\"timestamp\":1792224281007,\"targetDate\":\"2026-10-17\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"낫마스.\"},{\"id\":\"1792223037049hgu7c\",\"timestamp\":1792223037049,\"targetDate\":\"2026-10-17\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"낫마스\"},{\"id\":\"1792204224487coyop\",\"timestamp\":1792204224487,\"targetDate\":\"2026-10-17\",\"tab\":\"공용\",\"type\":\"DELETE\",\"content\":\"\"},{\"id\":\"1792150986957tbrdy\",\"timestamp\":1792150986957,\"targetDate\":\"2026-11-08\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"생일 파티♥\"},{\"id\":\"1792150980368dm1ah\",\"timestamp\":1792150980368,\"targetDate\":\"2026-11-08\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"생일 파뤼♥\"},{\"id\":\"1792150702277vd6ek\",\"timestamp\":1792150702277,\"targetDate\":\"2026-11-26\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"여행 ❤️ 데이트 ♥\"},{\"id\":\"1792150700679smffg\",\"timestamp\":1792150700679,\"targetDate\":\"2026-11-25\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"여행 ❤️ 데이트 ♥\"},{\"id\":\"17921506952887hmf7\",\"timestamp\":1792150695288,\"targetDate\":\"2026-11-24\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"여행 ❤️ 데이트 ♥\"},{\"id\":\"179215069323767vkq\",\"timestamp\":1792150693237,\"targetDate\":\"2026-11-23\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"여행 ❤️ 데이트 ♥\"},{\"id\":\"1792150689949adq5j\",\"timestamp\":1792150689949,\"targetDate\":\"2026-11-18\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"179215068570231zk0\",\"timestamp\":1792150685702,\"targetDate\":\"2026-11-08\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"1792150682598jvnec\",\"timestamp\":1792150682598,\"targetDate\":\"2026-11-01\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"1791794645053y8gou\",\"timestamp\":1791794645053,\"targetDate\":\"2026-10-13\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"소방훈련\"},{\"id\":\"1791794529485ml2as\",\"timestamp\":1791794529485,\"targetDate\":\"2026-10-27\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"content\":\"반차 예정 06-10\\nFTR\"},{\"id\":\"17917945092415ccfw\",\"timestamp\":1791794509241,\"targetDate\":\"2026-10-29\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"타운홀\"},{\"id\":\"1791794496376o9vp7\",\"timestamp\":1791794496376,\"targetDate\":\"2026-10-28\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"content\":\"공정교\"},{\"id\":\"1791794488845bi7tk\",\"timestamp\":1791794488845,\"targetDate\":\"2026-10-27\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"content\":\"반차 예정\\nFTR\"},{\"id\":\"17917944468993hkni\",\"timestamp\":1791794446899,\"targetDate\":\"2026-10-26\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"content\":\"휴;;;\"},{\"id\":\"1791609058413p8hvq\",\"timestamp\":1791609058413,\"targetDate\":\"2026-10-25\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"1791609056224ifuwx\",\"timestamp\":1791609056224,\"targetDate\":\"2026-10-24\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"1791609051514aycjq\",\"timestamp\":1791609051514,\"targetDate\":\"2026-10-17\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"179160903654135pmh\",\"timestamp\":1791609036541,\"targetDate\":\"2026-10-16\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"서울대공원 ♥\"},{\"id\":\"1791372109997rebpk\",\"timestamp\":1791372109997,\"targetDate\":\"2026-10-09\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"♥\"},{\"id\":\"1791372107830cnjxh\",\"timestamp\":1791372107830,\"targetDate\":\"2026-10-08\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"군산가염 ♥\"},{\"id\":\"1791131993332vj86o\",\"timestamp\":1791131993332,\"targetDate\":\"2026-10-08\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"군산가염\"},{\"id\":\"1790931008127irqf4\",\"timestamp\":1790931008127,\"targetDate\":\"2026-10-04\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"용산 ♥  비 예보 참고하기\"},{\"id\":\"1790930990128owsns\",\"timestamp\":1790930990128,\"targetDate\":\"2026-10-03\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"한강 ♥\"},{\"id\":\"17909309662118aqia\",\"timestamp\":1790930966211,\"targetDate\":\"2026-10-12\",\"tab\":\"RIGHT\",\"type\":\"ADD\",\"content\":\"치과 예약\"},{\"id\":\"1790284611770sfu6v\",\"timestamp\":1790284611770,\"targetDate\":\"2026-10-27\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"content\":\"반차 예정\\n타운홀미팅\"},{\"id\":\"1790266383543stsvo\",\"timestamp\":1790266383543,\"targetDate\":\"2026-11-29\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"오후6시 출근\"},{\"id\":\"1790266372863bs95x\",\"timestamp\":1790266372863,\"targetDate\":\"2026-11-27\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790266366769aiz4x\",\"timestamp\":1790266366769,\"targetDate\":\"2026-11-28\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"17902663490306hh1o\",\"timestamp\":1790266349030,\"targetDate\":\"2026-11-05\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"오후 6시 출근\"},{\"id\":\"1790266299688c2nun\",\"timestamp\":1790266299688,\"targetDate\":\"2026-11-04\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790266293222l6l0q\",\"timestamp\":1790266293222,\"targetDate\":\"2026-11-03\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790266095820j0i2p\",\"timestamp\":1790266095820,\"targetDate\":\"2026-10-12\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"오후 6시 출근\"},{\"id\":\"17902660837313o8uw\",\"timestamp\":1790266083731,\"targetDate\":\"2026-10-11\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790266068502k919n\",\"timestamp\":1790266068502,\"targetDate\":\"2026-10-10\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790265896083z0bkq\",\"timestamp\":1790265896083,\"targetDate\":\"2026-10-15\",\"tab\":\"LEFT\",\"type\":\"DELETE\",\"content\":\"\"},{\"id\":\"1790265889435ebczj\",\"timestamp\":1790265889435,\"targetDate\":\"2026-10-14\",\"tab\":\"LEFT\",\"type\":\"DELETE\",\"content\":\"\"},{\"id\":\"1790265796742xa28x\",\"timestamp\":1790265796742,\"targetDate\":\"2026-10-15\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790265787847l2fe7\",\"timestamp\":1790265787847,\"targetDate\":\"2026-10-14\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"B조 야간 2교대 지원\"},{\"id\":\"1790249986216lozam\",\"timestamp\":1790249986216,\"targetDate\":\"2026-10-03\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"송도 ♥\"},{\"id\":\"1790249572961fwpv0\",\"timestamp\":1790249572961,\"targetDate\":\"2026-09-30\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"치이!!!!! 카와!!! ♥\\n인천도화 15시 45분 영화\"},{\"id\":\"1790209239413buv9t\",\"timestamp\":1790209239413,\"targetDate\":\"2026-10-03\",\"tab\":\"공용\",\"type\":\"ADD\",\"content\":\"송도\"},{\"id\":\"179020923146278g44\",\"timestamp\":1790209231462,\"targetDate\":\"2026-09-30\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"치이!!!!! 카와!!! ♥ 용산 용산\"},{\"id\":\"1789960996193b0p78\",\"timestamp\":1789960996193,\"targetDate\":\"2026-09-22\",\"tab\":\"LEFT\",\"type\":\"EDIT\",\"content\":\"낚시 3시 30분 연안부두\"},{\"id\":\"1789960970016bbayd\",\"timestamp\":1789960970016,\"targetDate\":\"2026-09-21\",\"tab\":\"RIGHT\",\"type\":\"ADD\",\"content\":\"치과\"},{\"id\":\"17899609218772ngak\",\"timestamp\":1789960921877,\"targetDate\":\"2026-10-27\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"반차 예정\"},{\"id\":\"17899608814756cu7v\",\"timestamp\":1789960881475,\"targetDate\":\"2026-10-26\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"FTR 교육 참석 미정\"},{\"id\":\"1789960860772z2317\",\"timestamp\":1789960860772,\"targetDate\":\"2026-10-28\",\"tab\":\"LEFT\",\"type\":\"ADD\",\"content\":\"공정교육\"},{\"id\":\"17896187207385ques\",\"timestamp\":1789618720738,\"targetDate\":\"2026-09-22\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"♥\"},{\"id\":\"1789605745263za7w3\",\"timestamp\":1789605745263,\"targetDate\":\"2026-10-04\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"♥\"},{\"id\":\"1789604208011u6r34\",\"timestamp\":1789604208011,\"targetDate\":\"2026-10-04\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"❤️ 데이트 ♥\"},{\"id\":\"1789604199070gbnj9\",\"timestamp\":1789604199070,\"targetDate\":\"2026-09-23\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"❤️ 데이트 ♥\"},{\"id\":\"1789604197650mx5d4\",\"timestamp\":1789604197650,\"targetDate\":\"2026-09-22\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"❤️ 데이트 ♥\"},{\"id\":\"1789604194133lgpjr\",\"timestamp\":1789604194133,\"targetDate\":\"2026-09-14\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"❤️ 데이트 ♥\"},{\"id\":\"17896041832686ge4c\",\"timestamp\":1789604183268,\"targetDate\":\"2026-09-30\",\"tab\":\"공용\",\"type\":\"EDIT\",\"content\":\"치이!!!!! 카와!!! ♥\"}]",
     "hae_memo": "",
     "dawon_memo": ""
   },
@@ -3516,7 +3517,7 @@ export const INITIAL_CALENDAR_ROWS = [
       "textColor": "#1C1C1E"
     },
     "memo": "",
-    "hae_memo": "후반차 14~18시까지 근무 / 돠니 보려고 반차 옮겼당",
+    "hae_memo": "후반차 14~18시까지 근무 / 데이트하려고 반차 옮겼당",
     "dawon_memo": ""
   },
   {
