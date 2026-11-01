@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
+import { supabase, supabaseRawUrl, supabaseRawKey } from './supabase';
 import { verifyVaultPin, checkVaultLockStatus, LockStatus } from './src/utils/security';
 
 LocaleConfig.locales['kr'] = {
@@ -180,6 +180,7 @@ export default function App() {
   const [rightName, setRightName] = useState<string>(DEFAULT_RIGHT_NAME);
   const [leftNameInput, setLeftNameInput] = useState<string>(DEFAULT_LEFT_NAME);
   const [rightNameInput, setRightNameInput] = useState<string>(DEFAULT_RIGHT_NAME);
+  const [nameSavedNotice, setNameSavedNotice] = useState(false);
 
   const [mainTab, setMainTab] = useState<'calendar' | 'dday' | 'activity' | 'settings'>('calendar');
   const [calendarFilter, setCalendarFilter] = useState<'ALL' | 'TOGETHER' | 'LEFT' | 'RIGHT'>('ALL');
@@ -247,7 +248,7 @@ export default function App() {
 
   const coupleDaysCount = Math.floor((new Date(todayStr + 'T00:00:00Z').getTime() - COUPLE_START_DATE.getTime()) / 86400000) + 1;
 
-  const syncHistoryToSupabase = async (historyArray: any[]) => {
+  const syncHistoryToSupabase = async (historyArray: any[], customLeft?: string, customRight?: string) => {
     try {
       if (!supabase) return;
       const payload = {
@@ -255,8 +256,8 @@ export default function App() {
         hae_shift: null,
         dawon_shift: null,
         memo: JSON.stringify(historyArray.slice(0, 150)),
-        hae_memo: '',
-        dawon_memo: '',
+        hae_memo: customLeft ?? leftName,
+        dawon_memo: customRight ?? rightName,
       };
       const { error } = await supabase.from('couple_calendar').upsert(payload, { onConflict: 'date' });
       if (error) console.warn('History sync error:', error);
@@ -265,7 +266,7 @@ export default function App() {
     }
   };
 
-  const syncProfileNamesToSupabase = async (newLeft: string, newRight: string) => {
+  const syncProfileNamesToSupabase = useCallback(async (newLeft: string, newRight: string) => {
     const configPayload = { leftName: newLeft, rightName: newRight };
     try {
       await AsyncStorage.setItem('@couple_profile_config', JSON.stringify(configPayload));
@@ -277,33 +278,59 @@ export default function App() {
         hae_shift: null,
         dawon_shift: null,
         memo: JSON.stringify(configPayload),
-        hae_memo: '',
-        dawon_memo: '',
+        hae_memo: newLeft,
+        dawon_memo: newRight,
       };
       await supabase.from('couple_calendar').upsert(payload, { onConflict: 'date' });
     } catch (e) {
       console.warn('Profile sync exception:', e);
     }
+  }, []);
+
+  const handleLeftNameInputChange = (val: string) => {
+    setLeftNameInput(val);
+    const cleanLeft = val.trim() || DEFAULT_LEFT_NAME;
+    const cleanRight = rightNameInput.trim() || rightName || DEFAULT_RIGHT_NAME;
+    setLeftName(cleanLeft);
+    syncProfileNamesToSupabase(cleanLeft, cleanRight);
   };
 
-  const handleSaveCoupleNames = () => {
+  const handleRightNameInputChange = (val: string) => {
+    setRightNameInput(val);
+    const cleanLeft = leftNameInput.trim() || leftName || DEFAULT_LEFT_NAME;
+    const cleanRight = val.trim() || DEFAULT_RIGHT_NAME;
+    setRightName(cleanRight);
+    syncProfileNamesToSupabase(cleanLeft, cleanRight);
+  };
+
+  const handleSaveCoupleNames = async () => {
     const cleanLeft = leftNameInput.trim() || DEFAULT_LEFT_NAME;
     const cleanRight = rightNameInput.trim() || DEFAULT_RIGHT_NAME;
     setLeftName(cleanLeft);
     setRightName(cleanRight);
     setLeftNameInput(cleanLeft);
     setRightNameInput(cleanRight);
-    syncProfileNamesToSupabase(cleanLeft, cleanRight);
-    Alert.alert('이름 설정 완료', `좌측 이름: ${cleanLeft} / 우측 이름: ${cleanRight}\n캘린더와 모든 탭에 반영되었습니다.`);
+    await syncProfileNamesToSupabase(cleanLeft, cleanRight);
+    await syncHistoryToSupabase(memoHistory, cleanLeft, cleanRight);
+    setNameSavedNotice(true);
+    setTimeout(() => setNameSavedNotice(false), 2500);
+    if (Platform.OS !== 'web') {
+      Alert.alert('이름 설정 완료', `좌측 이름: ${cleanLeft} / 우측 이름: ${cleanRight}\n캘린더와 위젯에 반영되었습니다.`);
+    }
   };
 
-  const handleResetCoupleNames = () => {
+  const handleResetCoupleNames = async () => {
     setLeftName(DEFAULT_LEFT_NAME);
     setRightName(DEFAULT_RIGHT_NAME);
     setLeftNameInput(DEFAULT_LEFT_NAME);
     setRightNameInput(DEFAULT_RIGHT_NAME);
-    syncProfileNamesToSupabase(DEFAULT_LEFT_NAME, DEFAULT_RIGHT_NAME);
-    Alert.alert('초기화 완료', `기본 이름(${DEFAULT_LEFT_NAME} / ${DEFAULT_RIGHT_NAME})으로 초기화되었습니다.`);
+    await syncProfileNamesToSupabase(DEFAULT_LEFT_NAME, DEFAULT_RIGHT_NAME);
+    await syncHistoryToSupabase(memoHistory, DEFAULT_LEFT_NAME, DEFAULT_RIGHT_NAME);
+    setNameSavedNotice(true);
+    setTimeout(() => setNameSavedNotice(false), 2500);
+    if (Platform.OS !== 'web') {
+      Alert.alert('초기화 완료', `기본 이름(${DEFAULT_LEFT_NAME} / ${DEFAULT_RIGHT_NAME})으로 초기화되었습니다.`);
+    }
   };
 
   const recordMemoChangesBatch = (
@@ -440,6 +467,8 @@ export default function App() {
     if (!isInit) setIsRefreshing(true);
 
     let localHist: any[] = [];
+    let localLeft = '';
+    let localRight = '';
     try {
       const [rawLocal, rawProfile, rawTheme] = await Promise.all([
         AsyncStorage.getItem('@memo_history'),
@@ -453,12 +482,14 @@ export default function App() {
       if (rawProfile) {
         const parsedProfile = JSON.parse(rawProfile);
         if (parsedProfile?.leftName?.trim()) {
-          setLeftName(parsedProfile.leftName.trim());
-          setLeftNameInput(parsedProfile.leftName.trim());
+          localLeft = parsedProfile.leftName.trim();
+          setLeftName(localLeft);
+          setLeftNameInput(localLeft);
         }
         if (parsedProfile?.rightName?.trim()) {
-          setRightName(parsedProfile.rightName.trim());
-          setRightNameInput(parsedProfile.rightName.trim());
+          localRight = parsedProfile.rightName.trim();
+          setRightName(localRight);
+          setRightNameInput(localRight);
         }
       }
       if (rawTheme !== null) {
@@ -490,9 +521,17 @@ export default function App() {
         const lMemoMap: any = {};
         const rMemoMap: any = {};
         let remoteHist: any[] = [];
+        let remoteLeft = '';
+        let remoteRight = '';
 
         data.forEach((row) => {
           if (row.date === HISTORY_SYNC_DATE) {
+            if (!remoteLeft && row.hae_memo?.trim() && row.hae_memo.trim() !== DEFAULT_LEFT_NAME) {
+              remoteLeft = row.hae_memo.trim();
+            }
+            if (!remoteRight && row.dawon_memo?.trim() && row.dawon_memo.trim() !== DEFAULT_RIGHT_NAME) {
+              remoteRight = row.dawon_memo.trim();
+            }
             if (row.memo) {
               try {
                 const parsed = JSON.parse(row.memo);
@@ -502,18 +541,13 @@ export default function App() {
             return;
           }
           if (row.date === PROFILE_CONFIG_DATE) {
+            if (row.hae_memo?.trim()) remoteLeft = row.hae_memo.trim();
+            if (row.dawon_memo?.trim()) remoteRight = row.dawon_memo.trim();
             if (row.memo) {
               try {
                 const remoteCfg = JSON.parse(row.memo);
-                if (remoteCfg?.leftName?.trim()) {
-                  setLeftName(remoteCfg.leftName.trim());
-                  setLeftNameInput(remoteCfg.leftName.trim());
-                }
-                if (remoteCfg?.rightName?.trim()) {
-                  setRightName(remoteCfg.rightName.trim());
-                  setRightNameInput(remoteCfg.rightName.trim());
-                }
-                AsyncStorage.setItem('@couple_profile_config', JSON.stringify(remoteCfg)).catch(() => {});
+                if (remoteCfg?.leftName?.trim()) remoteLeft = remoteCfg.leftName.trim();
+                if (remoteCfg?.rightName?.trim()) remoteRight = remoteCfg.rightName.trim();
               } catch {}
             }
             return;
@@ -525,6 +559,27 @@ export default function App() {
           if (row.hae_memo) lMemoMap[row.date] = row.hae_memo;
           if (row.dawon_memo) rMemoMap[row.date] = row.dawon_memo;
         });
+
+        const hasCustomRemote =
+          (remoteLeft && remoteLeft !== DEFAULT_LEFT_NAME) ||
+          (remoteRight && remoteRight !== DEFAULT_RIGHT_NAME);
+        const hasCustomLocal =
+          (localLeft && localLeft !== DEFAULT_LEFT_NAME) ||
+          (localRight && localRight !== DEFAULT_RIGHT_NAME);
+
+        if (hasCustomRemote) {
+          const finalL = remoteLeft || localLeft || DEFAULT_LEFT_NAME;
+          const finalR = remoteRight || localRight || DEFAULT_RIGHT_NAME;
+          setLeftName(finalL);
+          setLeftNameInput(finalL);
+          setRightName(finalR);
+          setRightNameInput(finalR);
+          AsyncStorage.setItem('@couple_profile_config', JSON.stringify({ leftName: finalL, rightName: finalR })).catch(() => {});
+        } else if (hasCustomLocal) {
+          const finalL = localLeft || DEFAULT_LEFT_NAME;
+          const finalR = localRight || DEFAULT_RIGHT_NAME;
+          syncProfileNamesToSupabase(finalL, finalR);
+        }
 
         setLeftOverrides(lOver);
         setRightOverrides(rOver);
@@ -886,15 +941,21 @@ export default function App() {
       Platform.OS === 'web' && typeof window !== 'undefined'
         ? window.location.origin
         : 'https://couple-calendar-2026.vercel.app';
-    const sbUrl = (supabase as any)?.supabaseUrl || '';
-    const sbKey = (supabase as any)?.supabaseKey || '';
+    const sbUrl = supabaseRawUrl || (supabase as any)?.supabaseUrl || '';
+    const sbKey = supabaseRawKey || (supabase as any)?.supabaseKey || '';
+    const cleanLeft = leftNameInput.trim() || leftName || DEFAULT_LEFT_NAME;
+    const cleanRight = rightNameInput.trim() || rightName || DEFAULT_RIGHT_NAME;
     const params = new URLSearchParams();
     if (sbUrl && sbKey) {
       params.set('u', sbUrl);
       params.set('k', sbKey);
     }
-    params.set('left', leftName);
-    params.set('right', rightName);
+    if (cleanLeft !== DEFAULT_LEFT_NAME) {
+      params.set('left', cleanLeft);
+    }
+    if (cleanRight !== DEFAULT_RIGHT_NAME) {
+      params.set('right', cleanRight);
+    }
     const queryStr = params.toString();
     const httpsUrl = `${origin}/api/calendar${queryStr ? `?${queryStr}` : ''}`;
     const webcalUrl = httpsUrl.replace(/^https?:\/\//i, 'webcal://');
@@ -902,6 +963,9 @@ export default function App() {
   };
 
   const handleCopyWidgetUrl = async () => {
+    const cleanLeft = leftNameInput.trim() || leftName || DEFAULT_LEFT_NAME;
+    const cleanRight = rightNameInput.trim() || rightName || DEFAULT_RIGHT_NAME;
+    await syncProfileNamesToSupabase(cleanLeft, cleanRight);
     const { httpsUrl } = getWidgetSubscriptionUrls();
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(httpsUrl);
@@ -1605,7 +1669,7 @@ export default function App() {
                       { color: theme.text, backgroundColor: theme.cardSub, borderColor: theme.border },
                     ]}
                     value={leftNameInput}
-                    onChangeText={setLeftNameInput}
+                    onChangeText={handleLeftNameInputChange}
                     placeholder="좌측 이름 입력"
                     placeholderTextColor={theme.subText}
                     maxLength={8}
@@ -1620,7 +1684,7 @@ export default function App() {
                       { color: theme.text, backgroundColor: theme.cardSub, borderColor: theme.border },
                     ]}
                     value={rightNameInput}
-                    onChangeText={setRightNameInput}
+                    onChangeText={handleRightNameInputChange}
                     placeholder="우측 이름 입력"
                     placeholderTextColor={theme.subText}
                     maxLength={8}
@@ -1637,9 +1701,11 @@ export default function App() {
 
                 <TouchableOpacity
                   onPress={handleSaveCoupleNames}
-                  style={[styles.editTriggerBtn, { backgroundColor: theme.primary, paddingHorizontal: 16, paddingVertical: 8 }]}
+                  style={[styles.editTriggerBtn, { backgroundColor: nameSavedNotice ? '#10B981' : theme.primary, paddingHorizontal: 16, paddingVertical: 8 }]}
                 >
-                  <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>이름 저장</Text>
+                  <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>
+                    {nameSavedNotice ? '✅ 저장·위젯 반영 완료' : '이름 저장'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1648,7 +1714,12 @@ export default function App() {
               <Text style={[styles.sectionHeaderTitle, { color: theme.text }]}>⚙️ 앱 환경설정 & 연동</Text>
 
               <TouchableOpacity
-                onPress={() => setWidgetModalVisible(true)}
+                onPress={async () => {
+                  const cleanLeft = leftNameInput.trim() || leftName || DEFAULT_LEFT_NAME;
+                  const cleanRight = rightNameInput.trim() || rightName || DEFAULT_RIGHT_NAME;
+                  await syncProfileNamesToSupabase(cleanLeft, cleanRight);
+                  setWidgetModalVisible(true);
+                }}
                 style={[styles.settingItem, { borderBottomColor: theme.border }]}
               >
                 <View>
@@ -1957,13 +2028,27 @@ export default function App() {
             <Text style={{ fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 6 }}>
               📲 아이폰 캘린더 & 위젯 연동
             </Text>
-            <Text style={{ fontSize: 12, color: theme.subText, lineHeight: 18, marginBottom: 16 }}>
+            <Text style={{ fontSize: 12, color: theme.subText, lineHeight: 18, marginBottom: 10 }}>
               구독하기를 누르면 아이폰 기본 캘린더 앱에 {leftName}·{rightName}의 근무표와 데이트가 자동 동기화됩니다.
             </Text>
 
+            <View style={{ backgroundColor: theme.cardSub, borderColor: theme.border, borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: theme.primary }}>
+                🔍 위젯 표시 미리보기: [{leftName}:D | {rightName}:휴]
+              </Text>
+              <Text style={{ fontSize: 11, color: theme.subText, marginTop: 4, lineHeight: 16 }}>
+                ※ 이름을 변경하셨다면 아래 '원클릭 구독하기'를 한 번 더 눌러주시면 잠금화면 위젯에 새 이름이 즉시 반영됩니다.
+              </Text>
+            </View>
+
             <TouchableOpacity
               style={[styles.fullWidthBtn, { backgroundColor: theme.primary, marginBottom: 8 }]}
-              onPress={() => Linking.openURL(getWidgetSubscriptionUrls().webcalUrl)}
+              onPress={async () => {
+                const cleanLeft = leftNameInput.trim() || leftName || DEFAULT_LEFT_NAME;
+                const cleanRight = rightNameInput.trim() || rightName || DEFAULT_RIGHT_NAME;
+                await syncProfileNamesToSupabase(cleanLeft, cleanRight);
+                Linking.openURL(getWidgetSubscriptionUrls().webcalUrl);
+              }}
             >
               <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 14 }}>
                 🍏 아이폰 캘린더에 원클릭 구독하기

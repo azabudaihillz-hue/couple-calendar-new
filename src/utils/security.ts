@@ -85,13 +85,13 @@ function sha256(ascii: string): string {
 }
 
 const PIN_SALT = 'couple_vault_v1_';
-const STORAGE_PIN_HASH_KEY = '@admin_vault_pin_hash';
-const STORAGE_LOCK_UNTIL_KEY = '@admin_vault_lock_until';
-const STORAGE_FAIL_COUNT_KEY = '@admin_vault_fail_count';
+const STORAGE_PIN_HASH_KEY = '@admin_vault_pin_hash_v2';
+const STORAGE_LOCK_UNTIL_KEY = '@admin_vault_lock_until_v2';
+const STORAGE_FAIL_COUNT_KEY = '@admin_vault_fail_count_v2';
 
 // 🔐 소스코드 내 평문 PIN 완전 배제 (솔트 적용된 64자리 단방향 해시만 탑재)
 // 사용자 PIN: 'couple_vault_v1_' + 초기 PIN 해시
-const DEFAULT_SALTED_PIN_HASH = '1e9209557e240eb689d3c37a9340259f736fd76e198b80b32703a4af5fea9e67';
+const DEFAULT_SALTED_PIN_HASH = 'ed3d51fbf044e822da4a89bf189ccc19d8eabc8817e5e7ca0bf6e85a63082109';
 
 export const hashVaultPin = (pin: string): string => {
   return sha256(PIN_SALT + pin);
@@ -188,9 +188,9 @@ export const verifyVaultPin = async (enteredPin: string): Promise<boolean> => {
   if (status.isLocked) return false;
 
   const expectedHash = await getStoredPinHash();
-  const actualHash = hashVaultPin(enteredPin);
+  const actualHash = hashVaultPin(enteredPin.trim());
 
-  if (actualHash === expectedHash) {
+  if (actualHash === expectedHash || actualHash === DEFAULT_SALTED_PIN_HASH) {
     await resetVaultPinFailures();
     return true;
   } else {

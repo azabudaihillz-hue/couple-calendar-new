@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // 🔒 Vercel / Expo 환경 변수 로드
 // 우선순위: EXPO_PUBLIC_COUPLE_SUPABASE_URL -> EXPO_PUBLIC_SUPABASE_URL
-const rawUrl = (
+export const supabaseRawUrl = (
   process.env.EXPO_PUBLIC_COUPLE_SUPABASE_URL ||
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
   process.env.EXPO_PUBLIC_SUPABASE_URL_ ||
@@ -12,13 +12,16 @@ const rawUrl = (
 ).trim();
 
 // 우선순위: EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY -> EXPO_PUBLIC_SUPABASE_ANON_KEY
-const rawKey = (
+export const supabaseRawKey = (
   process.env.EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY ||
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY_ ||
   process.env.SUPABASE_ANON_KEY ||
   ''
 ).trim();
+
+const rawUrl = supabaseRawUrl;
+const rawKey = supabaseRawKey;
 
 // 환경변수가 정상적으로 주입되었는지 검증 (빈 문자열이거나 템플릿 값인 경우 제외)
 export const isSupabaseConfigured = Boolean(
