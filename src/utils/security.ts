@@ -183,6 +183,15 @@ export const resetVaultPinFailures = async (): Promise<void> => {
   }
 };
 
+const timingSafeEqualHex = (a: string, b: string): boolean => {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+};
+
 export const verifyVaultPin = async (enteredPin: string): Promise<boolean> => {
   const status = await checkVaultLockStatus();
   if (status.isLocked) return false;
@@ -190,7 +199,7 @@ export const verifyVaultPin = async (enteredPin: string): Promise<boolean> => {
   const expectedHash = await getStoredPinHash();
   const actualHash = hashVaultPin(enteredPin.trim());
 
-  if (actualHash === expectedHash || actualHash === DEFAULT_SALTED_PIN_HASH) {
+  if (timingSafeEqualHex(actualHash, expectedHash) || timingSafeEqualHex(actualHash, DEFAULT_SALTED_PIN_HASH)) {
     await resetVaultPinFailures();
     return true;
   } else {

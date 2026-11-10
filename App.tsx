@@ -717,14 +717,14 @@ export default function App() {
 
   const syncToSupabase = async (date: string, lOver: any, rOver: any, mem: string, lMem: string, rMem: string) => {
     try {
-      if (!supabase) return;
+      if (!supabase || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
       const payload = {
         date: date,
         hae_shift: lOver ? JSON.parse(JSON.stringify(lOver)) : null,
         dawon_shift: rOver ? JSON.parse(JSON.stringify(rOver)) : null,
-        memo: mem || '',
-        hae_memo: lMem || '',
-        dawon_memo: rMem || '',
+        memo: (mem || '').slice(0, 2000),
+        hae_memo: (lMem || '').slice(0, 2000),
+        dawon_memo: (rMem || '').slice(0, 2000),
       };
       const { error } = await supabase.from('couple_calendar').upsert(payload, { onConflict: 'date' });
       if (error) console.warn('Sync error:', error);

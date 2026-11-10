@@ -69,10 +69,16 @@ export default async function handler(reqOrRequest: any, maybeRes?: any) {
     targetYear = url.searchParams.get('year') || targetYear;
   }
 
+  if (!/^(19|20)\d{2}$/.test(targetYear)) {
+    targetYear = new Date().getFullYear().toString();
+  }
+
   const responseHeaders = {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
     // Vercel Edge Caching: 24시간 동안 캐시 유지, 백그라운드 갱신 (stale-while-revalidate 7일)
     'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
   };

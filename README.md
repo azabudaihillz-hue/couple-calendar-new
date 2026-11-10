@@ -57,8 +57,9 @@ React Native (Expo) 기반으로 모바일 및 웹 환경(Vercel)에 완벽 최�
 3. **즉시 재잠금 원칙**
    - 급여 금고 모달을 닫거나 새로고침 시 세션이 즉시 잠금 상태로 초기화됩니다.
 
-4. **Supabase 인증 정보 환경 변수 분리**
+4. **Supabase 인증 정보 환경 변수 분리 & RLS 보안 정책**
    - 소스코드 내 하드코딩된 Supabase URL 및 키를 제거하고 `process.env.EXPO_PUBLIC_*`로 분리했습니다.
+   - `supabase/rls_security_setup.sql`을 통해 `public.couple_calendar` 테이블의 Row Level Security(RLS)를 활성화하고, 외부에 의한 데이터 전체 삭제(`DELETE`/`TRUNCATE`)를 DB 권한 레벨에서 원천 차단하며, 유효한 날짜 포맷(`YYYY-MM-DD`) 및 메모 길이 제한 정책만 허용합니다.
 
 ---
 
@@ -74,8 +75,8 @@ EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY=your-supabase-anon-key
 # (하위 호환) EXPO_PUBLIC_SUPABASE_URL 도 폴백으로 지원됩니다.
 
 # (선택) 초기 관리자 금고 PIN 해시 (기본 솔트 SHA-256 해시)
-# 기본값: 1e9209557e240eb689d3c37a9340259f736fd76e198b80b32703a4af5fea9e67
-EXPO_PUBLIC_ADMIN_PIN_HASH=1e9209557e240eb689d3c37a9340259f736fd76e198b80b32703a4af5fea9e67
+# 기본값: ed3d51fbf044e822da4a89bf189ccc19d8eabc8817e5e7ca0bf6e85a63082109
+EXPO_PUBLIC_ADMIN_PIN_HASH=ed3d51fbf044e822da4a89bf189ccc19d8eabc8817e5e7ca0bf6e85a63082109
 
 # (선택) 한국 공휴일 API 연동 (api/holidays.ts)
 KASI_API_KEY=your-kasi-api-key

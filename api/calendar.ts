@@ -43,25 +43,44 @@ const escapeSummary = (text: string) => {
   return text.replace(/\r?\n/g, ' ').replace(/\\/g, '\\\\').replace(/[;,]/g, '\\$&');
 };
 
+const isValidSupabaseUrl = (val: string): boolean => {
+  return /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(val.trim());
+};
+
 export default async function handler(req: Request) {
   const url = new URL(req.url);
-  const supabaseUrl =
-    url.searchParams.get('u') ||
+  const envSupabaseUrl = (
     process.env.EXPO_PUBLIC_COUPLE_SUPABASE_URL ||
     process.env.EXPO_PUBLIC_SUPABASE_URL ||
     process.env.EXPO_PUBLIC_SUPABASE_URL_ ||
     process.env.SUPABASE_URL ||
-    '';
-  const supabaseKey =
-    url.searchParams.get('k') ||
+    ''
+  ).trim();
+  const envSupabaseKey = (
     process.env.EXPO_PUBLIC_COUPLE_SUPABASE_ANON_KEY ||
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY_ ||
     process.env.SUPABASE_ANON_KEY ||
-    '';
+    ''
+  ).trim();
 
-  const paramLeft = url.searchParams.get('left')?.trim();
-  const paramRight = url.searchParams.get('right')?.trim();
+  const querySupabaseUrl = (url.searchParams.get('u') || '').trim();
+  const querySupabaseKey = (url.searchParams.get('k') || '').trim();
+
+  // 🔒 SSRF 및 서버 토큰 유출 방지: 서버 환경변수를 최우선 사용하고, 쿼리 파라미터는 유효한 Supabase 도메인일 때만 허용
+  const supabaseUrl = isValidSupabaseUrl(envSupabaseUrl)
+    ? envSupabaseUrl
+    : isValidSupabaseUrl(querySupabaseUrl)
+    ? querySupabaseUrl
+    : '';
+  const supabaseKey = isValidSupabaseUrl(envSupabaseUrl) && envSupabaseKey
+    ? envSupabaseKey
+    : isValidSupabaseUrl(querySupabaseUrl)
+    ? querySupabaseKey
+    : '';
+
+  const paramLeft = url.searchParams.get('left')?.trim().slice(0, 12);
+  const paramRight = url.searchParams.get('right')?.trim().slice(0, 12);
 
   let leftName = isCustomName(paramLeft, DEFAULT_LEFT_NAME) ? paramLeft : DEFAULT_LEFT_NAME;
   let rightName = isCustomName(paramRight, DEFAULT_RIGHT_NAME) ? paramRight : DEFAULT_RIGHT_NAME;
@@ -208,6 +227,9 @@ export default async function handler(req: Request) {
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'no-referrer',
     },
   });
 }
